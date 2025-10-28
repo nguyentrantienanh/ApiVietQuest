@@ -10,7 +10,7 @@ const UserSchema = new mongoose.Schema(
     // ⚙️ Dùng string thay vì ref
     provinces: { type: String },         // ví dụ: "Khánh Hòa"
     provinces_code: { type: String },    // ví dụ: "56" hoặc "tinh_khanh_hoa"
-
+lastQuizCompletionDate: { type: Date },  // Ngày hoàn thành quiz gần nhất
     avatar: { type: String },
     streak: { type: Number, default: 0 },
     biography: { type: String, default: '' },

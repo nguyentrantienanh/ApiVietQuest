@@ -23,6 +23,7 @@
     "mongoose": "^8.6.0",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0",
