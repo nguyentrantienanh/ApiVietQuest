@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thêm Di Sản</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+      body { padding: 2rem; background: #f8fafc; }
+      .card-img-top { object-fit: cover; height: 200px; }
+      .small-muted { font-size: .9rem; color: #6c757d; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Thêm Di Sản</h2>
+        <a href="/heritages" class="btn btn-outline-primary">Danh sách di sản</a>
+      </div>
+
+      <% if (message) { %>
+        <div class="alert alert-info"><%= message %></div>
+      <% } %>
+
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form action="/heritages/new" method="post" enctype="multipart/form-data">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">HID</label>
+                <input class="form-control" name="hid" required placeholder="vd: vn-qs-0002" />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">district_codename</label>
+                <input class="form-control" name="district_codename" required />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Tên di sản</label>
+                <input class="form-control" name="name" required />
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Loại</label>
+                <select class="form-select" name="type" required>
+                  <option value="di_san_van_hoa_vat_the">Văn hoá vật thể</option>
+                  <option value="di_san_van_hoa_phi_vat_the">Văn hoá phi vật thể</option>
+                  <option value="di_san_thien_nhien">Thiên nhiên</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Cấp bậc</label>
+                <select class="form-select" name="level" required>
+                  <option value="cap_tinh">Cấp tỉnh</option>
+                  <option value="cap_quoc_gia">Cấp quốc gia</option>
+                  <option value="cap_dac_biet">Cấp đặc biệt</option>
+                  <option value="di_san_the_gioi">Di sản thế giới</option>
+                  <option value="ds_phi_vat_the_dai_dien">Phi vật thể đại diện</option>
+                  <option value="ky_uc_the_gioi">Ký ức thế giới</option>
+                  <option value="khu_du_tru_sinh_quyen">Khu dự trữ sinh quyển</option>
+                  <option value="cong_vien_dia_chat_toan_cau">Công viên địa chất toàn cầu</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Wiki Link</label>
+                <input class="form-control" name="wiki_link" type="url" />
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Ảnh chính</label>
+                <input class="form-control" type="file" name="img" accept="image/*" />
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Thư viện ảnh (nhiều)</label>
+                <input class="form-control" type="file" name="photo_library" accept="image/*" multiple />
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Summary</label>
+                <textarea class="form-control" name="Summary" rows="2"></textarea>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">History</label>
+                <textarea class="form-control" name="history" rows="4"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Giá trị di sản</label>
+                <textarea class="form-control" name="Heritage" rows="4"></textarea>
+              </div>
+
+              <div class="col-12 text-end">
+                <button class="btn btn-primary">Lưu Di Sản</button>
+                <a href="/heritages" class="btn btn-secondary ms-2">Huỷ</a>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

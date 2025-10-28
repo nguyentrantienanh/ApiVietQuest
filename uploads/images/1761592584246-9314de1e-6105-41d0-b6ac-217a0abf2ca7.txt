@@ -1,0 +1,301 @@
+import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { WallComment, WallEntity, WallPointHistory } from '../../interfaces/wall.interface';
+import { mockComments, mockPointHistory, mockWalls } from '../../data/wall.mock';
+
+import { useGoToEvidencePage } from '@/hooks/use-go-to-evidence-page';
+import { Button } from '@repo/react-web-ui-shadcn/components/ui/button';
+import { RefreshCw, SmilePlus, SendHorizontal } from 'lucide-react';
+
+function Avatar({ src, name, size = 44 }: { src?: string; name?: string; size?: number }) {
+  const initials = useMemo(
+    () =>
+      (name || '')
+        .split(' ')
+        .filter(Boolean)
+        .map(s => s[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase(),
+    [name]
+  );
+
+  return (
+    <div className="shrink-0 rounded-full bg-gradient-to-br p-[2px]" style={{ width: size, height: size }}>
+      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white">
+        {src ? (
+          <img src={src} alt="avatar" className="h-full w-full rounded-full object-cover" />
+        ) : (
+          <span className="font-semibold text-[#1a3d7c]">{initials}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PostSkeleton() {
+  return (
+    <div className="flex w-[800px] flex-col items-center justify-center py-10 text-primary">
+      <svg className="mb-2 h-6 w-6 animate-spin text-primary lg:h-8 lg:w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      <p className="text-sm font-medium lg:text-base">Đang tải dữ liệu...</p>
+    </div>
+  );
+}
+
+const formatDateTiem = (isoString: string) => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} - ${hours}:${minutes}`;
+};
+
+// Định nghĩa một kiểu dữ liệu tổng hợp để component dễ dàng sử dụng
+type CombinedPost = WallEntity & {
+  comments: WallComment[];
+  notification?: WallPointHistory;
+};
+
+export default function Desktopwall() {
+  const [activeText, setActiveText] = useState<Record<string, string>>({});
+  const [posts, setPosts] = useState<CombinedPost[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const { redirect: goToEvidence } = useGoToEvidencePage();
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  // load initial
+  useEffect(() => {
+    const processData = () => {
+      // Kết hợp walls, comments, và point history
+      const combinedData = mockWalls.map(wall => {
+        const wallComments = mockComments.filter(comment => comment.wallId === wall.id);
+        // Tìm một notification liên quan (ví dụ: điểm nhận được khi có comment)
+        const notification = mockPointHistory.find(p => p.wallId === wall.id && p.reason === 'comment_received');
+
+        return {
+          ...wall,
+          comments: wallComments,
+          notification: notification,
+        };
+      });
+      setPosts(combinedData);
+      setLoading(false);
+    };
+
+    setLoading(true);
+    // Giả lập thời gian tải dữ liệu
+    const t = setTimeout(processData, 600);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleCommentChange = (postId: string, value: string) => {
+    setActiveText(s => ({ ...s, [postId]: value }));
+  };
+
+  const handleSend = (postId: string) => {
+    const text = (activeText[postId] || '').trim();
+    if (!text) return;
+    const newComment = {
+      id: `comment-${Date.now()}`, // ID tạm thời
+      content: text,
+      wallId: postId,
+      userId: 'current-user', // ID của người dùng hiện tại
+      userName: 'Bạn', // Tên người dùng hiện tại
+      userAvatar: 'https://i.pravatar.cc/40', // Avatar người dùng hiện tại
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPosts(prev => prev.map(p => (p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p)));
+    setActiveText(s => ({ ...s, [postId]: '' }));
+  };
+
+  const doRefresh = () => {
+    setLoading(true);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const processData = () => {
+      const combinedData = mockWalls.map(wall => {
+        const wallComments = mockComments.filter(comment => comment.wallId === wall.id);
+        const notification = mockPointHistory.find(p => p.wallId === wall.id && p.reason === 'comment_received');
+
+        return {
+          ...wall,
+          comments: wallComments,
+          notification: notification,
+        };
+      });
+      setPosts(combinedData);
+      setLoading(false);
+    };
+
+    const t = setTimeout(processData, 600);
+    return () => clearTimeout(t);
+  };
+
+  return (
+    <div className="font-sans min-h-screen overflow-x-hidden">
+      {/* Tabs top */}
+      <nav className="mb-8 md:ml-0 lg:ml-[5%] xl:ml-[8%] 2xl:ml-[10%]">
+        <ul className="flex items-center gap-6 text-sm">
+          <li>
+            <a href="#" className="text-primary underline">
+              Monster
+            </a>
+          </li>
+          <li>
+            <a href="#" className="text-primary underline">
+              Cô gái Hà Lan
+            </a>
+          </li>
+          <li>
+            <a href="#" className="text-primary underline">
+              Fami
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      {/* Container center */}
+
+      <div className="relative mx-auto flex w-full max-w-7xl justify-center px-4 pb-12 lg:px-8">
+        <div className="grid w-full grid-cols-[15%_1fr_auto] gap-5 lg:gap-8 xl:gap-10 2xl:gap-12">
+          {/* Nút Refresh */}
+          <div className="h-fit justify-self-end">
+            <Button
+              variant="transparent"
+              size="icon"
+              onClick={doRefresh}
+              disabled={loading}
+              title="Refresh"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e0e0e0] bg-white shadow-sm transition-all duration-200 hover:bg-zinc-50"
+            >
+              <RefreshCw className="h-5 w-5 text-primary" />
+            </Button>
+          </div>
+          {/* Main feed */}
+          <main ref={mainRef} className="w-full max-w-4xl">
+            <div className="flex flex-col">
+              {loading ? (
+                <>
+                  <PostSkeleton />
+                </>
+              ) : (
+                posts.map(post => (
+                  <>
+                    {post.notification && (
+                      <article
+                        key={post.notification.id}
+                        className="mb-6 w-full max-w-4xl rounded-2xl border-0 bg-zinc-200 p-3 shadow-[0_6px_24px_rgba(17,27,71,0.08)] ring-1 ring-[#e9eef7]"
+                      >
+                        {/* Header */}
+                        <header className="mb-3 flex items-center gap-3">
+                          <Avatar src={post.userAvatar} name={post.userName} size={44} />
+                          <div className="flex flex-col leading-tight">
+                            <span className="text-[15px] font-semibold text-foreground">{post.userName}</span>
+                            <span className="text-xs text-muted-foreground">{formatDateTiem(post.notification.createdAt)}</span>
+                          </div>
+                        </header>
+                        {/* Title */}
+                        {post.title ? (
+                          <div className="text-muted-DEFAULT mb-2 text-sm font-bold">
+                            <span className="font-normal">Nhận được {post.notification.points} điểm từ </span>
+                            {post.title}
+                          </div>
+                        ) : null}
+                      </article>
+                    )}
+                    {/* Post */}
+                    <article
+                      key={post.id}
+                      className="mb-6 w-full max-w-4xl rounded-2xl border-0 bg-zinc-200 p-3 shadow-[0_6px_24px_rgba(17,27,71,0.08)] ring-1 ring-[#e9eef7]"
+                    >
+                      {/* Header */}
+                      <header className="mb-3 flex items-center gap-3">
+                        <Avatar src={post.userAvatar} name={post.userName} size={44} />
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-[15px] font-semibold text-foreground">{post.userName}</span>
+                          <span className="text-xs text-muted-foreground">{formatDateTiem(post.createdAt)}</span>
+                        </div>
+                      </header>
+                      {/* Title */}
+                      {post.title ? (
+                        <div className="text-muted-DEFAULT mb-2 text-sm font-bold">
+                          <span className="font-normal">Vừa tải lên bằng chứng mới là </span>
+                          {post.title}
+                        </div>
+                      ) : null}
+                      {/* Description */}
+                      {post.description ? (
+                        <p className="text-muted-DEFAULT mb-3 whitespace-pre-wrap text-sm font-bold leading-6">
+                          <span className="text-muted-DEFAULT font-normal">Lời nhắn nhủ:</span> {post.description}
+                        </p>
+                      ) : null}
+                      {/* Image */}
+                      {post.imageUrl ? (
+                        <img className="mb-3 max-h-[440px] w-full rounded-xl object-cover ring-1 ring-[#e9eef7]" src={post.imageUrl} alt="post" />
+                      ) : null}
+                      {/* Comment input */}
+                      <div className="mt-2 flex items-center gap-2">
+                        <Avatar src="https://i.pravatar.cc/40" name="You" size={36} />
+                        <div className="flex w-full justify-between rounded-xl border border-[#e6edf6] bg-background px-3 shadow-inner">
+                          <input
+                            placeholder="Type a message"
+                            value={activeText[post.id] || ''}
+                            onChange={e => handleCommentChange(post.id, e.target.value)}
+                            className="w-full bg-transparent text-sm text-[#0f172a] outline-none placeholder:text-[#9aa7b7]"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button className="m-0 bg-transparent p-0 hover:bg-transparent focus:bg-transparent active:bg-transparent">
+                              <SmilePlus className="h-5 w-5 cursor-pointer text-muted-foreground hover:text-primary" />
+                            </Button>
+                            <div className="h-5 w-[1px] bg-[#e0e0e0]" />
+                            <Button
+                              onClick={() => handleSend(post.id)}
+                              className="m-0 bg-transparent p-0 hover:bg-transparent focus:bg-transparent active:bg-transparent"
+                            >
+                              <SendHorizontal className="h-5 w-5 cursor-pointer text-muted-foreground hover:text-primary" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Comments */}
+                      {!!post.comments?.length && (
+                        <div className="mt-3 space-y-2">
+                          {post.comments.map(c => (
+                            <div key={c.id} className="mt-2 flex items-center gap-2">
+                              <Avatar src={c.userAvatar} name={c.userName} size={36} />
+                              <div className="w-full rounded-xl bg-[#f8fafc] p-2 ring-1 ring-[#edf2f7]">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-semibold text-[#0f172a]">{c.userName}</div>
+                                  <div className="mr-auto text-xs text-[#94a3b8]">{formatDateTiem(c.createdAt)}</div>
+                                </div>
+                                <div className="mt-1 text-sm text-[#334155]">{c.content}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  </>
+                ))
+              )}
+            </div>
+          </main>
+          {/* Sidebar (Upload Evidence) */}
+          <aside className="sticky top-4 h-fit w-48">
+            <Button variant={'gradient'} className="px-6 text-lg font-bold lg:block" onClick={goToEvidence}>
+              Upload Evidence
+            </Button>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}

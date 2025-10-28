@@ -1,0 +1,19 @@
+[
+  {
+    "hid": "vn-qs-0001",
+    "district_codename": "tp_ha_long",
+    "name": "Vịnh Hạ Long",
+    "type": "di_san_thien_nhien",
+    "type_code": 3,
+    "wiki_link": "https://vi.wikipedia.org/wiki/Vịnh_Hạ_Long",
+    "coordinate": { "type": "Point", "coordinates": [107.058, 20.910] },
+    "level": "di_san_the_gioi",
+    "code_level": 4,
+    "img": "https://upload.wikimedia.org/wikipedia/commons/5/5e/Ha_Long_Bay.jpg",
+    "photo_library": [],
+    "Summary": "Quần thể núi đá vôi và hang động độc đáo.",
+    "history": "",
+    "Heritage": "",
+    "tags": ["thiên_nhiên","vịnh","du_lịch"]
+  }
+]
