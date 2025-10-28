@@ -87,25 +87,67 @@ function sanitize(body) {
 export async function updateHeritage(req, res) {
   try {
     const { hid } = req.params;
-    const update = { ...req.body };
+    const update = { ...req.body }; // Dữ liệu text từ form
 
+    // Map code từ type/level (nếu có)
     if (update.type) update.type_code = TYPE_MAP[update.type];
     if (update.level) update.code_level = LEVEL_MAP[update.level];
 
+    // --- Xử lý Ảnh chính (img) ---
+    // Ưu tiên file mới tải lên
     if (req.files?.img?.[0]) {
       update.img = normalizeImageValue(req.files.img[0], req);
     }
-    if (req.files?.photo_library?.length) {
-      const current = (await Heritage.findOne({ hid }))?.photo_library || [];
-      const added = req.files.photo_library.map(f => normalizeImageValue(f, req)).filter(Boolean);
-      update.photo_library = [...current, ...added];
+    // Nếu không có file mới, kiểm tra xem client có gửi giá trị text không
+    // (có thể là URL cũ hoặc bị xóa -> "")
+    else if ('img' in req.body) {
+         // Nếu gửi "" -> xóa ảnh, nếu gửi URL -> giữ nguyên, nếu không gửi -> không đổi
+         update.img = normalizeImageValue(req.body.img, req) || null; // Dùng null nếu muốn xóa hẳn
     }
 
+    // --- Xử lý Thư viện ảnh (photo_library) ---
+    let keptPhotos = [];
+    // 1. Lấy danh sách ảnh cũ cần giữ lại từ hidden input (gửi dạng JSON string)
+    if (req.body.photo_library && typeof req.body.photo_library === 'string') {
+      try {
+        const parsedKept = JSON.parse(req.body.photo_library);
+        if (Array.isArray(parsedKept)) {
+          // Chuẩn hóa lại các URL/path cũ này (phòng trường hợp)
+          keptPhotos = parsedKept.map(p => normalizeImageValue(p, req)).filter(Boolean);
+        }
+      } catch (e) {
+        console.error("Lỗi parse JSON photo_library:", e);
+        // Có thể bỏ qua hoặc báo lỗi tùy logic
+      }
+    }
+
+    // 2. Lấy danh sách ảnh MỚI tải lên từ multer
+    const addedPhotos = (req.files?.photo_library || [])
+                          .map(f => normalizeImageValue(f, req))
+                          .filter(Boolean);
+
+    // 3. Kết hợp ảnh cũ (đã lọc) và ảnh mới
+    // Chỉ cập nhật photo_library nếu có ảnh mới hoặc danh sách ảnh cũ thay đổi
+    if (addedPhotos.length > 0 || req.body.photo_library) {
+         update.photo_library = [...keptPhotos, ...addedPhotos];
+    } else {
+        // Nếu không có ảnh mới và không có thông tin ảnh cũ gửi lên,
+        // thì không cập nhật photo_library (giữ nguyên giá trị cũ trong DB)
+        delete update.photo_library;
+    }
+
+
+    // (Tuỳ chọn) Sanitize các trường khác nếu cần
+    // sanitize(update);
+
+    // Thực hiện cập nhật
     const item = await Heritage.findOneAndUpdate({ hid }, update, { new: true, runValidators: true });
+
     if (!item) return res.status(404).json({ error: 'Không tìm thấy' });
-    res.json(item);
+    res.json(item); // Trả về di sản đã cập nhật
   } catch (e) {
-    res.status(400).json({ error: e.message });
+    console.error("Lỗi updateHeritage:", e); // Log lỗi chi tiết
+    res.status(500).json({ error: e.message }); // Dùng 500 cho lỗi server
   }
 }
 
