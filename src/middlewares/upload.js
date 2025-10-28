@@ -34,7 +34,8 @@ export function toPublicUrl(req, filename) {
 // Build an absolute public URL server-side (doesn't require a request)
 export function publicUrl(filename) {
   const port = process.env.PORT || '4000';
-  const base = process.env.BASE_URL || `http://localhost:${port}`;
+  // Sẽ dùng BASE_URL trên Render, dùng localhost:4000 trên máy
+  const base = process.env.URL_CLIENT || `http://localhost:${port}`;
   return `${base}/uploads/images/${filename}`;
 }
 export const uploadUserAvatar = upload.single('avatar');
