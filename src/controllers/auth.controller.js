@@ -1,8 +1,28 @@
+// src/controllers/auth.controller.js
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User } from '../models/User.js';
 import { v4 as uuidv4 } from 'uuid';
+import { User } from '../models/User.js';
 import { validateRegister, pickRegister } from '../validators/auth.validator.js';
+
+/** Helper: chuẩn hoá email */
+function normalizeEmail(email) {
+  return String(email || '').toLowerCase().trim();
+}
+
+/** Helper: rút URL công khai từ file (CloudinaryStorage) */
+function fileToPublicUrl(file) {
+  if (!file) return undefined;
+  if (file.secure_url) return file.secure_url;          // ưu tiên https
+  if (file.url) return file.url;
+  if (file.path && String(file.path).startsWith('http')) return file.path;
+  if (file.filename) {
+    const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+    const fmt = file.format || 'jpg';
+    return `https://res.cloudinary.com/${cloud}/image/upload/${file.filename}.${fmt}`;
+  }
+  return undefined;
+}
 
 function signToken(user) {
   return jwt.sign(
@@ -16,8 +36,7 @@ export async function login(req, res) {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email & password required' });
 
-  // normalize email to match storage (registration lowercases email)
-  const emailNorm = String(email).toLowerCase().trim();
+  const emailNorm = normalizeEmail(email);
   const user = await User.findOne({ email: emailNorm });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -43,34 +62,52 @@ export async function login(req, res) {
   });
 }
 
-
 export async function me(req, res) {
-  // cần auth()
   const user = await User.findById(req.user.id).select('email role createdAt');
   res.json({ user });
 }
 
+/**
+ * Đăng ký tài khoản (có hỗ trợ avatar):
+ * - Nếu client gửi file `avatar` (multipart/form-data) -> ưu tiên URL Cloudinary.
+ * - Nếu không có file, nhưng body có `avatar` (URL) -> dùng URL.
+ */
 export async function register(req, res) {
-  const err = validateRegister(req.body);
-  if (err) return res.status(400).json({ error: err });
+  // Nếu validator yêu cầu raw body text, chạy trước để báo lỗi sớm
+  const preErr = validateRegister(req.body);
+  if (preErr) return res.status(400).json({ error: preErr });
 
+  // Lấy field text hợp lệ
   const incoming = pickRegister(req.body);
-  const { email, password } = incoming;
+  const emailNorm = normalizeEmail(incoming.email);
 
-  const exists = await User.findOne({ email });
+  // Check trùng email
+  const exists = await User.findOne({ email: emailNorm });
   if (exists) return res.status(409).json({ error: 'Email đã được sử dụng' });
 
-  const hashed = await bcrypt.hash(password, 10);
+  // Hash password
+  const hashed = await bcrypt.hash(incoming.password, 10);
+
+  // Lấy avatar:
+  // 1) Nếu có file từ Cloudinary
+  let avatarUrl = undefined;
+  if (req.file) {
+    avatarUrl = fileToPublicUrl(req.file);
+  }
+  // 2) Nếu không có file mà body có avatar là URL -> dùng URL
+  if (!avatarUrl && incoming.avatar && /^https?:\/\//i.test(incoming.avatar)) {
+    avatarUrl = incoming.avatar;
+  }
 
   const user = new User({
     id: uuidv4(),
     name: incoming.name,
-    email: String(email).toLowerCase().trim(),
+    email: emailNorm,
     password: hashed,
     phone: incoming.phone,
     provinces: incoming.provinces,
     provinces_code: incoming.provinces_code,
-    avatar: incoming.avatar,
+    avatar: avatarUrl || '',               // có thể để rỗng nếu chưa có
     biography: incoming.biography || '',
   });
 

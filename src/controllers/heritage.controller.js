@@ -1,75 +1,118 @@
+// controllers/heritage.controller.js
 import { Heritage, __ENUMS } from '../models/Heritage.js';
-import { validateCreate, pickUpdatable } from '../validators/heritage.validator.js';
+import { validateCreate } from '../validators/heritage.validator.js';
 import { publicUrl } from '../middlewares/upload.js';
+import path from 'path';
 
-const TYPE_MAP = { di_san_van_hoa_vat_the:1, di_san_van_hoa_phi_vat_the:2, di_san_thien_nhien:3 };
-const LEVEL_MAP = { cap_tinh:1, cap_quoc_gia:2, cap_dac_biet:3, di_san_the_gioi:4, ds_phi_vat_the_dai_dien:5, ky_uc_the_gioi:6, khu_du_tru_sinh_quyen:7, cong_vien_dia_chat_toan_cau:8 };
+const TYPE_MAP = {
+  di_san_van_hoa_vat_the: 1,
+  di_san_van_hoa_phi_vat_the: 2,
+  di_san_thien_nhien: 3
+};
+const LEVEL_MAP = {
+  cap_tinh: 1,
+  cap_quoc_gia: 2,
+  cap_dac_biet: 3,
+  di_san_the_gioi: 4,
+  ds_phi_vat_the_dai_dien: 5,
+  ky_uc_the_gioi: 6,
+  khu_du_tru_sinh_quyen: 7,
+  cong_vien_dia_chat_toan_cau: 8
+};
 
+/** Trả về URL ảnh hợp lệ từ object (multer+cloudinary) hoặc string */
 function normalizeImageValue(val, req) {
   if (!val && val !== '') return undefined;
-  // val may be an object from multer (with filename) or a filename string or a full URL
+
   if (typeof val === 'object') {
-    if (val.filename) return publicUrl(val.filename);
-    if (val.path) return publicUrl(require('path').basename(val.path));
+    // CloudinaryStorage thường trả:
+    // - secure_url (https) (ưu tiên)
+    // - url
+    // - path (nhiều phiên bản map URL vào path)
+    // - filename, format
+    if (val.secure_url) return val.secure_url;
+    if (val.url) return val.url;
+    if (val.path) {
+      const s = String(val.path);
+      if (s.startsWith('http')) return s;
+      if (val.filename) {
+        const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+        const fmt = val.format || 'jpg';
+        return `https://res.cloudinary.com/${cloud}/image/upload/${val.filename}.${fmt}`;
+      }
+      return s;
+    }
     return undefined;
   }
+
   if (typeof val === 'string') {
     const s = val.trim();
     if (!s) return undefined;
-    if (/^https?:\/\//i.test(s)) return s;
-    if (s.startsWith('/') || s.startsWith('uploads/')) return s.startsWith('/') ? s : `/${s}`;
-    // plain filename -> make public url
-    if (/^[\w\-.]+\.[A-Za-z0-9]{2,6}$/.test(s)) return publicUrl(s);
-    // otherwise return as-is
-    return s;
+    if (/^https?:\/\//i.test(s)) return s; // URL cũ/Cloudinary -> giữ nguyên
+    return s; // nếu còn path local, tuỳ bạn có còn phục vụ static hay không
   }
   return undefined;
 }
 
 function sanitize(body) {
-  // convert "" -> undefined để validator bỏ qua
   for (const k in body) if (body[k] === '') body[k] = undefined;
-  // nếu thiếu protocol cho wiki_link thì thêm https://
   if (body.wiki_link && !/^https?:\/\//i.test(body.wiki_link)) {
     body.wiki_link = `https://${body.wiki_link}`;
   }
 }
- export async function createHeritage(req, res) {
+
+/** Trích xuất GeoJSON từ link Google Maps */
+function extractCoordinates(url) {
+  if (!url || typeof url !== 'string') return null;
+
+  // Pattern 1: /@lat,lng,z/
+  let match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+),(\d+z)/);
+
+  // Pattern 2: q=lat,lng
+  if (!match) match = url.match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+
+  if (match && match.length >= 3) {
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return { type: 'Point', coordinates: [lng, lat] }; // GeoJSON: [lng, lat]
+  }
+  return null;
+}
+
+export async function createHeritage(req, res) {
   try {
     const body = { ...req.body };
 
-    // map code từ type/level
     if (body.type) body.type_code = TYPE_MAP[body.type];
     if (body.level) body.code_level = LEVEL_MAP[body.level];
 
-    // map file -> URL (robust: accept multer objects, filenames or urls)
-    if (req.files?.img?.[0]) {
-      body.img = normalizeImageValue(req.files.img[0], req);
-    } else if (body.img) {
-      body.img = normalizeImageValue(body.img, req);
-    }
+    // Ảnh chính
+    if (req.files?.img?.[0]) body.img = normalizeImageValue(req.files.img[0], req);
+    else if (body.img) body.img = normalizeImageValue(body.img, req);
+
+    // Thư viện ảnh
     if (req.files?.photo_library?.length) {
       body.photo_library = req.files.photo_library.map(f => normalizeImageValue(f, req)).filter(Boolean);
     } else if (body.photo_library) {
-      // might be sent as JSON string or array
       let arr = body.photo_library;
       if (typeof arr === 'string') {
         try { arr = JSON.parse(arr); } catch { arr = [arr]; }
       }
-      if (Array.isArray(arr)) {
-        body.photo_library = arr.map(v => normalizeImageValue(v, req)).filter(Boolean);
-      } else {
-        body.photo_library = [normalizeImageValue(arr, req)].filter(Boolean);
-      }
+      if (Array.isArray(arr)) body.photo_library = arr.map(v => normalizeImageValue(v, req)).filter(Boolean);
+      else body.photo_library = [normalizeImageValue(arr, req)].filter(Boolean);
     }
 
-    // parse JSON nếu có
-    if (typeof body.coordinate === 'string' && body.coordinate.trim()) {
-      try { body.coordinate = JSON.parse(body.coordinate); } catch {}
+    // Google Maps link -> GeoJSON
+    if (body.google_map_link) {
+      const geoJson = extractCoordinates(body.google_map_link);
+      body.coordinate = geoJson || undefined;
+    } else if (body.google_map_link === '') {
+      body.coordinate = undefined;
     }
-    if (typeof body.tags === 'string' && body.tags.trim()) {
-      try { body.tags = JSON.parse(body.tags); } catch {}
-    }
+
+    if (typeof body.coordinate === 'string' && body.coordinate.trim()) { try { body.coordinate = JSON.parse(body.coordinate); } catch {} }
+    if (typeof body.tags === 'string' && body.tags.trim()) { try { body.tags = JSON.parse(body.tags); } catch {} }
 
     sanitize(body);
 
@@ -87,67 +130,55 @@ function sanitize(body) {
 export async function updateHeritage(req, res) {
   try {
     const { hid } = req.params;
-    const update = { ...req.body }; // Dữ liệu text từ form
+    const update = { ...req.body };
 
-    // Map code từ type/level (nếu có)
     if (update.type) update.type_code = TYPE_MAP[update.type];
     if (update.level) update.code_level = LEVEL_MAP[update.level];
 
-    // --- Xử lý Ảnh chính (img) ---
-    // Ưu tiên file mới tải lên
+    // Ảnh chính
     if (req.files?.img?.[0]) {
       update.img = normalizeImageValue(req.files.img[0], req);
-    }
-    // Nếu không có file mới, kiểm tra xem client có gửi giá trị text không
-    // (có thể là URL cũ hoặc bị xóa -> "")
-    else if ('img' in req.body) {
-         // Nếu gửi "" -> xóa ảnh, nếu gửi URL -> giữ nguyên, nếu không gửi -> không đổi
-         update.img = normalizeImageValue(req.body.img, req) || null; // Dùng null nếu muốn xóa hẳn
+    } else if ('img' in req.body) {
+      // Cho phép xóa ảnh chính khi client gửi img=""
+      update.img = normalizeImageValue(req.body.img, req);
+      if (update.img === undefined) update.img = null;
     }
 
-    // --- Xử lý Thư viện ảnh (photo_library) ---
+    // Thư viện ảnh: giữ cũ + thêm mới
     let keptPhotos = [];
-    // 1. Lấy danh sách ảnh cũ cần giữ lại từ hidden input (gửi dạng JSON string)
-    if (req.body.photo_library && typeof req.body.photo_library === 'string') {
+    if (update.photo_library && typeof update.photo_library === 'string') {
       try {
-        const parsedKept = JSON.parse(req.body.photo_library);
-        if (Array.isArray(parsedKept)) {
-          // Chuẩn hóa lại các URL/path cũ này (phòng trường hợp)
-          keptPhotos = parsedKept.map(p => normalizeImageValue(p, req)).filter(Boolean);
-        }
-      } catch (e) {
-        console.error("Lỗi parse JSON photo_library:", e);
-        // Có thể bỏ qua hoặc báo lỗi tùy logic
+        const parsed = JSON.parse(update.photo_library);
+        if (Array.isArray(parsed)) keptPhotos = parsed.map(p => normalizeImageValue(p, req)).filter(Boolean);
+        else keptPhotos = [normalizeImageValue(parsed, req)].filter(Boolean);
+      } catch {
+        keptPhotos = [normalizeImageValue(update.photo_library, req)].filter(Boolean);
+      }
+    }
+    const addedPhotos = (req.files?.photo_library || []).map(f => normalizeImageValue(f, req)).filter(Boolean);
+    if (addedPhotos.length > 0 || update.photo_library) {
+      update.photo_library = [...keptPhotos, ...addedPhotos];
+    } else {
+      delete update.photo_library;
+    }
+
+    // Google Maps link -> GeoJSON
+    if (update.google_map_link || update.google_map_link === '') {
+      const geoJson = extractCoordinates(update.google_map_link);
+      if (geoJson) {
+        update.coordinate = geoJson;
+      } else if (update.google_map_link === '') {
+        update.coordinate = undefined;
+        update.google_map_link = null;
       }
     }
 
-    // 2. Lấy danh sách ảnh MỚI tải lên từ multer
-    const addedPhotos = (req.files?.photo_library || [])
-                          .map(f => normalizeImageValue(f, req))
-                          .filter(Boolean);
-
-    // 3. Kết hợp ảnh cũ (đã lọc) và ảnh mới
-    // Chỉ cập nhật photo_library nếu có ảnh mới hoặc danh sách ảnh cũ thay đổi
-    if (addedPhotos.length > 0 || req.body.photo_library) {
-         update.photo_library = [...keptPhotos, ...addedPhotos];
-    } else {
-        // Nếu không có ảnh mới và không có thông tin ảnh cũ gửi lên,
-        // thì không cập nhật photo_library (giữ nguyên giá trị cũ trong DB)
-        delete update.photo_library;
-    }
-
-
-    // (Tuỳ chọn) Sanitize các trường khác nếu cần
-    // sanitize(update);
-
-    // Thực hiện cập nhật
     const item = await Heritage.findOneAndUpdate({ hid }, update, { new: true, runValidators: true });
-
     if (!item) return res.status(404).json({ error: 'Không tìm thấy' });
-    res.json(item); // Trả về di sản đã cập nhật
+    res.json(item);
   } catch (e) {
-    console.error("Lỗi updateHeritage:", e); // Log lỗi chi tiết
-    res.status(500).json({ error: e.message }); // Dùng 500 cho lỗi server
+    console.error('Lỗi updateHeritage:', e);
+    res.status(500).json({ error: e.message || 'Lỗi server khi cập nhật' });
   }
 }
 
@@ -161,10 +192,8 @@ export async function listHeritages(req, res) {
     if (type_code) filter.type_code = Number(type_code);
     if (code_level) filter.code_level = Number(code_level);
 
-    // text search
     if (q) filter.$text = { $search: q };
 
-    // near by (Geo)
     if (near) {
       const [latStr, lngStr] = near.split(',').map(s => s.trim());
       const lat = Number(latStr), lng = Number(lngStr);
@@ -203,27 +232,17 @@ export async function getHeritage(req, res) {
   res.json(item);
 }
 
- 
-// heritage.controller.js
-
 export async function deleteHeritage(req, res) {
   console.log('>>> [DELETE] Đã nhận request xóa hid:', req.params.hid);
-  
-  try { // <--- THÊM DÒNG NÀY
+  try {
     const { hid } = req.params;
     const r = await Heritage.deleteOne({ hid });
-
-    if (r.deletedCount === 0) {
-      return res.status(404).json({ error: 'Không tìm thấy' });
-    }
-    
+    if (r.deletedCount === 0) return res.status(404).json({ error: 'Không tìm thấy' });
     res.json({ ok: true });
-
-  } catch (e) { // <--- THÊM DÒNG NÀY
-    // Báo lỗi 500 (Server Error) thay vì làm sập server
+  } catch (e) {
     console.error('LỖI KHI XÓA HERITAGE:', e.message);
     res.status(500).json({ error: e.message });
-  } // <--- THÊM DÒNG NÀY
+  }
 }
 
 export async function enums(req, res) {

@@ -1,24 +1,44 @@
+// src/middlewares/upload.js
+import 'dotenv/config'; // đảm bảo ENV có trước khi config Cloudinary
+
 import multer from 'multer';
-import fs from 'fs';
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+
+// (giữ nếu bạn vẫn cần phục vụ static /uploads cho code cũ)
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { v4 as uuid } from 'uuid';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const UPLOAD_DIR = path.join(__dirname, '../../uploads/images');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// 1) Cấu hình Cloudinary từ ENV
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, // dlkpojfbn
+  api_key: process.env.CLOUDINARY_API_KEY,       // 123456789012345
+  api_secret: process.env.CLOUDINARY_API_SECRET, // abcdefGhijklMnopQrstu
+});
 
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, UPLOAD_DIR),
-  filename: (_, file, cb) => {
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    cb(null, `${Date.now()}-${uuid()}${ext}`);
+// 2) Storage Cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'vietquest_img',
+    format: async () => 'jpg',                // ép về jpg
+    public_id: (req, file) => `${Date.now()}`, // id duy nhất
   },
 });
 
-export const upload = multer({ storage });
+// 3) Multer
+export const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    if (!/^image\/(png|jpe?g|webp|svg\+xml)$/i.test(file.mimetype)) {
+      return cb(new Error('Chỉ cho phép file ảnh (png, jpg, jpeg, webp, svg).'));
+    }
+    cb(null, true);
+  },
+});
 
 // dùng cho heritage: 1 ảnh chính + nhiều ảnh phụ
 export const uploadHeritageImages = upload.fields([
@@ -26,16 +46,19 @@ export const uploadHeritageImages = upload.fields([
   { name: 'photo_library', maxCount: 20 },
 ]);
 
+// Trả URL public (Cloudinary đã cho https)
+export function publicUrl(filenameOrUrl) {
+  if (typeof filenameOrUrl === 'string' && /^https?:\/\//i.test(filenameOrUrl)) {
+    return filenameOrUrl;
+  }
+  return filenameOrUrl; // fallback
+}
+
+// Giữ để tương thích code cũ (local uploads) — nếu còn dùng
 export function toPublicUrl(req, filename) {
   const base = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
   return `${base}/uploads/images/${filename}`;
 }
 
-// Build an absolute public URL server-side (doesn't require a request)
-export function publicUrl(filename) {
-  const port = process.env.PORT || '4000';
-  // Sẽ dùng BASE_URL trên Render, dùng localhost:4000 trên máy
-  const base = process.env.URL_CLIENT || `http://localhost:${port}`;
-  return `${base}/uploads/images/${filename}`;
-}
+// ✅ Single upload cho avatar user — field: "avatar"
 export const uploadUserAvatar = upload.single('avatar');

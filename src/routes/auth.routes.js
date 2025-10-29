@@ -1,7 +1,8 @@
+// src/routes/auth.routes.js
 import { Router } from 'express';
 import { login, me, register } from '../controllers/auth.controller.js';
-import { validateRegister } from '../validators/auth.validator.js';
 import { auth } from '../middlewares/auth.js';
+import { uploadUserAvatar } from '../middlewares/upload.js';
 
 const r = Router();
 
@@ -50,10 +51,30 @@ r.post('/login', login);
  * /auth/register:
  *   post:
  *     tags: [Auth]
- *     summary: Đăng ký tài khoản user (public)
+ *     summary: Đăng ký tài khoản user (public) — hỗ trợ upload avatar
  *     requestBody:
  *       required: true
  *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [name, email, password]
+ *             properties:
+ *               name: { type: string, example: "Nguyễn Văn A" }
+ *               email: { type: string, example: "user@example.com" }
+ *               password: { type: string, example: "secret123" }
+ *               phone: { type: string, example: "0987654321" }
+ *               provinces: { type: string, example: "Khánh Hòa" }
+ *               provinces_code: { type: string, example: "56" }
+ *               biography: { type: string, example: "Hello VietQuest!" }
+ *               // Cách A: upload trực tiếp file avatar
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *               // Cách B: nếu đã có URL avatar sẵn, gửi kèm field text avatar (URL http/https)
+ *           encoding:
+ *             avatar:
+ *               contentType: image/png, image/jpeg, image/webp
  *         application/json:
  *           schema:
  *             type: object
@@ -62,10 +83,15 @@ r.post('/login', login);
  *               name: { type: string }
  *               email: { type: string }
  *               password: { type: string }
+ *               phone: { type: string }
+ *               provinces: { type: string }
+ *               provinces_code: { type: string }
+ *               biography: { type: string }
+ *               avatar: { type: string, description: "URL http/https nếu không upload file" }
  *     responses:
  *       201: { description: Created }
  */
-r.post('/register', register);
+r.post('/register', uploadUserAvatar, register);
 
 /**
  * @openapi

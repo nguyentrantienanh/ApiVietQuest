@@ -43,8 +43,7 @@ const HeritageSchema = new mongoose.Schema(
       }
     },
 
-    // Tọa độ GeoJSON (để near, radius km)
-    // Google Maps dùng lat,lng nhưng GeoJSON là [lng, lat]
+    // Tọa độ GeoJSON (để near, radius km) - GIỮ NGUYÊN CẤU TRÚC
     coordinate: {
       type: {
         type: String,
@@ -60,6 +59,13 @@ const HeritageSchema = new mongoose.Schema(
         }
       }
     },
+
+    // ▼▼▼ THÊM TRƯỜNG MỚI: GOOGLE MAPS URL ▼▼▼
+    google_map_link: {
+      type: String,
+      trim: true,
+    },
+    // ▲▲▲ KẾT THÚC THÊM TRƯỜNG MỚI ▲▲▲
 
     // Cấp bậc & code_level (1..8)
     level: { type: String, enum: LEVEL_ENUM, required: true },
@@ -129,10 +135,8 @@ HeritageSchema.pre('validate', function(next) {
     const coords = this.coordinate.coordinates;
     const valid = Array.isArray(coords) && coords.length === 2 && coords.every(n => typeof n === 'number' && Number.isFinite(n));
     if (!valid) {
-      // remove malformed coordinate so Mongo won't fail the 2dsphere index
       this.coordinate = undefined;
     } else {
-      // ensure type is correct
       this.coordinate.type = 'Point';
     }
   }
