@@ -20,6 +20,7 @@ import heritageViewRoutes from './routes/heritage.views.js'; // Nếu còn dùng
 import cron from 'node-cron';         // Import node-cron
 import { User } from './models/User.js'; // Import User model
 
+import aiRouter from './routes/ai.route.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config();
@@ -63,6 +64,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/user/quizattempt', quizAttemptRoutes); // Gắn vào /api/user/
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/ai', aiRouter);
 
 // --- EJS View Routes (Nếu còn dùng) ---
 // app.set('view engine', 'ejs');
@@ -76,7 +78,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 // --- Kết nối DB và Khởi động Server ---
 connectDB(MONGODB_URI).then(() => {
   const server = app.listen(PORT, () => {
-    console.log(`🚀 VietQuest API listening on port ${PORT}`);
+    console.log(`🚀 VietQuest API listening on port http://localhost:${PORT}`);
     console.log(`📘 Swagger Docs available at /api/docs`); // Đường dẫn không cần localhost
   });
 
