@@ -124,3 +124,23 @@ export async function deleteMe(req, res) {
     res.status(500).json({ error: e.message || 'Lỗi server khi xóa tài khoản' });
   }
 }
+/**
+ * [Public] Lấy Top 3 người chiến thắng tuần trước
+ * GET /api/user/leaderboard/lastweek-winners
+ */
+export async function getLastWeekWinners(req, res) {
+  try {
+    // Chỉ tìm những người có lastWeekRank = 1
+    const winners = await User.find({ lastWeekRank: 1 })
+      .select('name avatar provinces weeklyScore lastWeekWinnerCount') // Lấy các trường cần thiết
+      .sort({ weeklyScore: -1 }) // Sắp xếp theo điểm (nếu có nhiều người)
+      .limit(3) // Chỉ lấy tối đa 3 người
+      .lean();
+
+    // Quan trọng: Trả về mảng rỗng [] nếu không có ai
+    res.json(winners);
+  } catch (e) {
+    console.error('Lỗi getLastWeekWinners:', e);
+    res.status(500).json({ error: e.message || 'Lỗi server khi lấy người thắng tuần trước' });
+  }
+}

@@ -5,14 +5,16 @@ import {
   getMe,
   updateMe,
   deleteMe,
+  getLastWeekWinners
 } from '../controllers/user.controller.js';
 import { uploadUserAvatar } from '../middlewares/upload.js';
 
 const r = Router();
 
+ 
 // 🔒 Tất cả route ở file này yêu cầu đăng nhập
 r.use(auth());
-
+r.get('/leaderboard/lastweek-winners', getLastWeekWinners);
 /**
  * @openapi
  * tags:
@@ -63,5 +65,5 @@ r.patch('/update', uploadUserAvatar, updateMe);
  *       - bearerAuth: []
  */
 r.delete('/delete', deleteMe);
-
+ 
 export default r;
