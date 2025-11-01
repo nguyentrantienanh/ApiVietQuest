@@ -19,7 +19,7 @@ import leaderboardRoutes from './routes/leaderboard.routes.js';
 import heritageViewRoutes from './routes/heritage.views.js'; // Nếu còn dùng EJS Views
 import cron from 'node-cron';         // Import node-cron
 import { User } from './models/User.js'; // Import User model
-
+import { startWeeklyResetScheduler } from './services/scheduler.js';
 import aiRouter from './routes/ai.route.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -83,7 +83,7 @@ connectDB(MONGODB_URI).then(() => {
   });
 
   // --- Lập Lịch Cron Jobs ---
-
+startWeeklyResetScheduler();
   // 1. Reset Điểm Tuần (00:00 Thứ Hai)
   cron.schedule('0 0 * * 1', async () => {
     console.log('>>> [CRON] Starting weekly score reset...');
