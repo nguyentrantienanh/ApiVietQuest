@@ -24,6 +24,7 @@ lastWeekWinnerCount: {
   type: Number,
   default: 0
 },
+lastWeeklyScore: { type: Number, default: 0, index: true },
     creationdate: { type: Date, default: Date.now },
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
     experience: { type: Number, default: 0, index: true },

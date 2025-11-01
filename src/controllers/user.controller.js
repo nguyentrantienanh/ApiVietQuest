@@ -128,19 +128,38 @@ export async function deleteMe(req, res) {
  * [Public] Lấy Top 3 người chiến thắng tuần trước
  * GET /api/user/leaderboard/lastweek-winners
  */
+/**
+ * [Public] Lấy Top 3 người chiến thắng tuần trước
+ * GET /api/user/leaderboard/lastweek-winners
+ * Query: ?province_code=... (Optional)
+ */
 export async function getLastWeekWinners(req, res) {
   try {
-    // Chỉ tìm những người có lastWeekRank = 1
-    const winners = await User.find({ lastWeekRank: 1 })
-      .select('name avatar provinces weeklyScore lastWeekWinnerCount') // Lấy các trường cần thiết
-      .sort({ weeklyScore: -1 }) // Sắp xếp theo điểm (nếu có nhiều người)
-      .limit(3) // Chỉ lấy tối đa 3 người
+    const { province_code } = req.query; // Lấy query từ URL
+
+    let filters = {
+      lastWeeklyScore: { $gt: 0 } // Chỉ tìm người có điểm
+    };
+
+    // NẾU có province_code, lọc theo tỉnh
+    if (province_code) {
+      filters.provinces_code = province_code;
+    } 
+    // NẾU KHÔNG CÓ (mặc định là Việt Nam), lọc theo hạng 1 toàn cầu
+    else {
+      filters.lastWeekRank = 1;
+    }
+
+    const winners = await User.find(filters)
+      // Các trường này RẤT QUAN TRỌNG cho bục vinh danh
+      .select('name avatar provinces weeklyScore lastWeeklyScore lastWeekWinnerCount')
+      .sort({ lastWeeklyScore: -1 }) // Sắp xếp theo điểm tuần TRƯỚC
+      .limit(3) // Chỉ lấy 3 người top
       .lean();
 
-    // Quan trọng: Trả về mảng rỗng [] nếu không có ai
     res.json(winners);
   } catch (e) {
     console.error('Lỗi getLastWeekWinners:', e);
-    res.status(500).json({ error: e.message || 'Lỗi server khi lấy người thắng tuần trước' });
+    res.status(500).json({ error: e.message || 'Lỗi server' });
   }
 }
