@@ -84,23 +84,8 @@ connectDB(MONGODB_URI).then(() => {
 
   // --- Lập Lịch Cron Jobs ---
 startWeeklyResetScheduler();
-  // 1. Reset Điểm Tuần (00:00 Thứ Hai)
-  cron.schedule('0 0 * * 1', async () => {
-    console.log('>>> [CRON] Starting weekly score reset...');
-    try {
-      const result = await User.updateMany(
-        { role: 'user', weeklyScore: { $gt: 0 } }, // Chỉ reset user có điểm > 0
-        { $set: { weeklyScore: 0 } }
-      );
-      console.log(`>>> [CRON] Weekly score reset complete. Updated ${result.modifiedCount} users.`);
-    } catch (error) {
-      console.error('>>> [CRON] Error resetting weekly scores:', error);
-    }
-  }, {
-    scheduled: true,
-    timezone: "Asia/Ho_Chi_Minh"
-  });
-  console.log('>>> [CRON] Weekly score reset scheduled for every Monday at 00:00 (VN Time).');
+  // Weekly reset is handled by startWeeklyResetScheduler() in src/services/scheduler.js
+  // Avoid duplicate cron jobs here to prevent race conditions (backup must run before reset).
 
   // 2. Reset Streak (00:05 Mỗi Ngày)
   cron.schedule('5 0 * * *', async () => {

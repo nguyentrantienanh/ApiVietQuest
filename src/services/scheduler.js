@@ -20,7 +20,7 @@ export function startWeeklyResetScheduler() {
 /**
  * Logic chính: SAO LƯU điểm, RESET điểm, GÁN hạng 1 toàn cầu
  */
-async function resetWeeklyLeaderboard() {
+export async function resetWeeklyLeaderboard() {
   try {
     // === BƯỚC 1: SAO LƯU ĐIỂM VÀ RESET VỀ 0 ===
     // Dùng aggregation pipeline để copy "weeklyScore" -> "lastWeeklyScore"
