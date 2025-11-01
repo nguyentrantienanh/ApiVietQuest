@@ -2,7 +2,7 @@
 import { QuizConfig, QuizThemeTypes } from '../models/QuizConfig.js';
 import { QuizAttempt } from '../models/QuizAttempt.js';
 import { Heritage } from '../models/Heritage.js';
-import { User } from '../models/User.js'; // Đảm bảo đã import User
+import { User } from '../models/User.js';
 import axios from 'axios';
 
 // --- Helper Functions ---
@@ -15,26 +15,64 @@ function shuffleArray(array) {
   return array;
 }
 
-// Lấy danh sách Tỉnh/Thành từ API (có cache đơn giản)
-let provincesCache = null;
+// ▼▼▼ HÀM ĐÃ SỬA ▼▼▼
+// Cache cho 2 loại dữ liệu
+let provincesCache = null; // Dùng cho options { name, codename }
+let districtToProvinceMapCache = null; // Dùng để tra cứu Huyện -> Tỉnh
+
+/**
+ * Lấy danh sách Tỉnh/Thành (và map Huyện -> Tỉnh) từ API
+ */
 async function getProvinces() {
-  if (provincesCache) return provincesCache;
+  // Nếu có cache, trả về ngay
+  if (provincesCache && districtToProvinceMapCache) {
+    return { allProvinces: provincesCache, districtMap: districtToProvinceMapCache };
+  }
+
   try {
-    const response = await axios.get('https://provinces.open-api.vn/api/p/');
-    // Chỉ lấy name và codename
-    provincesCache = response.data.map(p => ({ name: p.name, codename: p.codename }));
-    return provincesCache;
+    // Gọi API lấy đầy đủ Tỉnh (depth=1) và Huyện (depth=2)
+    const response = await axios.get('https://provinces.open-api.vn/api/?depth=2');
+    
+    if (!response.data || !Array.isArray(response.data)) {
+        throw new Error('API tỉnh/thành không trả về dữ liệu mảng');
+    }
+
+    const allProvinces = [];
+    const districtMap = new Map();
+
+    for (const province of response.data) {
+        // 1. Thêm vào danh sách Tỉnh (để làm đáp án)
+        allProvinces.push({ name: province.name, codename: province.codename });
+
+        // 2. Thêm các huyện/quận của tỉnh này vào bản đồ tra cứu
+        if (province.districts && Array.isArray(province.districts)) {
+            for (const district of province.districts) {
+                // Key: "quan_ba_dinh", Value: "thanh_pho_ha_noi"
+                districtMap.set(district.codename, province.codename);
+            }
+        }
+    }
+    
+    // Lưu vào cache
+    provincesCache = allProvinces;
+    districtToProvinceMapCache = districtMap;
+
+    return { allProvinces: provincesCache, districtMap: districtToProvinceMapCache };
+
   } catch (error) {
-    console.error("Lỗi khi lấy danh sách tỉnh:", error);
-    throw error; // Ném lỗi ra ngoài để hàm gọi xử lý
+    console.error("Lỗi khi lấy danh sách tỉnh (depth=2):", error.message);
+    // Xóa cache nếu lỗi
+    provincesCache = null;
+    districtToProvinceMapCache = null;
+    throw error; // Ném lỗi ra ngoài
   }
 }
+// ▲▲▲ HẾT HÀM SỬA ▲▲▲
 
 // --- CONTROLLERS ---
 
 /**
  * [Public] Lấy danh sách tất cả các Chủ đề Quiz (QuizConfig)
- * GET /api/quiz
  */
 export async function listQuizConfigs(req, res) {
   try {
@@ -48,20 +86,16 @@ export async function listQuizConfigs(req, res) {
 
 /**
  * [Admin] Lấy chi tiết 1 Chủ đề Quiz (QuizConfig) bằng _id
- * GET /api/quiz/:configId
  */
 export async function getQuizConfigDetail(req, res) {
-  // console.log(`>>> [GET /api/quiz/:id] Đã nhận request. ID: ${req.params.configId}`);
   try {
     const { configId } = req.params;
-    const config = await QuizConfig.findById(configId); // Find by _id
+    const config = await QuizConfig.findById(configId); 
 
     if (!config) {
-      // console.log(`>>> [GET /api/quiz/:id] Không tìm thấy config với ID: ${configId}`);
       return res.status(404).json({ error: 'Không tìm thấy chủ đề quiz' });
     }
-    // console.log(`>>> [GET /api/quiz/:id] Tìm thấy config:`, config.themeType);
-    res.json(config); // Trả về chi tiết config
+    res.json(config); 
   } catch (e) {
     if (e.kind === 'ObjectId') {
       return res.status(400).json({ error: 'Invalid config ID format' });
@@ -118,10 +152,24 @@ export async function startDynamicQuiz(req, res) {
       return res.status(400).json({ error: `Không đủ di sản (${candidates.length}) phù hợp với chủ đề '${config.themeType}' để tạo ${questionCount} câu hỏi (cần ít nhất ${Math.max(minCandidatesNeeded, questionCount)}).` });
     }
 
-    const allProvinces = requiresProvinceData ? await getProvinces() : [];
-    if (requiresProvinceData && allProvinces.length < 4) {
-       return res.status(500).json({ error: 'Không thể lấy đủ dữ liệu tỉnh/thành.' });
+    // ▼▼▼ SỬA LOGIC LẤY TỈNH ▼▼▼
+    let allProvinces = [];
+    let districtMap = null;
+
+    if (requiresProvinceData) {
+      try {
+        const provinceData = await getProvinces(); // Gọi hàm mới
+        allProvinces = provinceData.allProvinces;
+        districtMap = provinceData.districtMap;
+
+        if (allProvinces.length < 4 || districtMap.size === 0) {
+           return res.status(500).json({ error: 'Không thể lấy đủ dữ liệu tỉnh/thành hoặc bản đồ huyện.' });
+        }
+      } catch (e) {
+         return res.status(500).json({ error: 'Lỗi API khi lấy dữ liệu Tỉnh/Huyện.' });
+      }
     }
+    // ▲▲▲ HẾT SỬA LOGIC LẤY TỈNH ▲▲▲
 
     // Tạo bộ câu hỏi
     const questions = [];
@@ -151,28 +199,37 @@ export async function startDynamicQuiz(req, res) {
               ]).map(opt => ({ text: opt.name, value: opt.hid }));
               break;
 
+            // ▼▼▼ SỬA LOGIC TÌM TỈNH ▼▼▼
             case 'GUESS_PROVINCE_FROM_IMAGE':
             case 'GUESS_PROVINCE_FROM_NAME':
               questionText = config.themeType === 'GUESS_PROVINCE_FROM_IMAGE'
                 ? "Di sản này thuộc tỉnh/thành nào?"
                 : `Di sản '${correctHeritage.name}' thuộc tỉnh/thành nào?`;
 
-              const correctProvince = allProvinces.find(p =>
-                 correctHeritage.district_codename?.includes(p.codename) ||
-                 correctHeritage.district_codename?.startsWith(p.codename.replace('tinh_', '').replace('thanh_pho_', ''))
-              );
+              // 1. Dùng map để tra cứu tỉnh từ huyện
+              const correctProvinceCodename = districtMap.get(correctHeritage.district_codename);
+              if (!correctProvinceCodename) {
+                   console.warn(`(Map) Không tìm thấy tỉnh cho di sản ${correctHeritage.hid} (huyện: ${correctHeritage.district_codename})`);
+                   continue; // Bỏ qua nếu huyện này không có trong bản đồ
+              }
+              
+              // 2. Tìm đối tượng Tỉnh đầy đủ
+              const correctProvince = allProvinces.find(p => p.codename === correctProvinceCodename);
+              
               if (!correctProvince) {
-                  console.warn(`Không tìm thấy tỉnh cho di sản ${correctHeritage.hid} (${correctHeritage.district_codename})`);
+                  console.warn(`(List) Không tìm thấy đối tượng tỉnh cho codename: ${correctProvinceCodename}`);
                   continue;
               }
 
+              // 3. Tìm 3 tỉnh sai (Giữ nguyên)
               const wrongProvinces = allProvinces.filter(p => p.codename !== correctProvince.codename);
-               if (wrongProvinces.length < 3) continue;
+              if (wrongProvinces.length < 3) continue; // Cần ít nhất 3 tỉnh khác
               options = shuffleArray([
                 correctProvince,
                 ...shuffleArray(wrongProvinces).slice(0, 3)
               ]).map(opt => ({ text: opt.name, value: opt.codename }));
               break;
+            // ▲▲▲ HẾT SỬA LOGIC TÌM TỈNH ▲▲▲
 
             case 'GUESS_NAME_FROM_SUMMARY':
                questionText = "Mô tả này nói về di sản nào?";
@@ -238,8 +295,22 @@ export async function submitDynamicQuiz(req, res) {
     const attemptAnswers = [];
 
     // --- Logic chấm điểm ---
+    // ▼▼▼ SỬA LOGIC CHẤM ĐIỂM ▼▼▼
+    let allProvinces = [];
+    let districtMap = null;
     const requiresProvinceData = config.themeType.includes('PROVINCE');
-    const allProvinces = requiresProvinceData ? await getProvinces() : [];
+
+    if (requiresProvinceData) {
+       try {
+        const provinceData = await getProvinces(); // Gọi hàm đã sửa
+        allProvinces = provinceData.allProvinces;
+        districtMap = provinceData.districtMap;
+      } catch (e) {
+         return res.status(500).json({ error: 'Lỗi API khi lấy dữ liệu Tỉnh/Huyện để chấm điểm.' });
+      }
+    }
+    
+    // Lấy di sản (Giữ nguyên)
     const heritageDetails = requiresProvinceData
         ? await Heritage.find({ hid: { $in: answers.map(a => a.questionId) } }).select('hid district_codename')
         : [];
@@ -257,11 +328,14 @@ export async function submitDynamicQuiz(req, res) {
                break;
            case 'GUESS_PROVINCE_FROM_IMAGE':
            case 'GUESS_PROVINCE_FROM_NAME':
+               // Sửa logic chấm điểm
                const correctDistrictCodename = heritageMap.get(questionHid);
-               const correctProvince = allProvinces.find(p => correctDistrictCodename?.includes(p.codename));
-               isCorrect = (correctProvince?.codename === selectedValue);
+               const correctProvinceCodename = districtMap.get(correctDistrictCodename);
+               
+               isCorrect = (correctProvinceCodename === selectedValue);
                break;
        }
+       // ▲▲▲ HẾT SỬA LOGIC CHẤM ĐIỂM ▲▲▲
 
        if (isCorrect) correctCount++;
 
@@ -285,42 +359,32 @@ export async function submitDynamicQuiz(req, res) {
     // --- Kết thúc tính điểm ---
 
     // --- Logic Tính Toán Streak Update ---
-    // console.log('\n--- Bắt đầu kiểm tra Streak ---');
     let streakUpdate = {};
     const today = new Date();
     const todayDateString = today.toISOString().split('T')[0]; // 'YYYY-MM-DD' UTC
-    // console.log(`Streak Check: Ngày hôm nay (UTC): ${todayDateString}`);
 
     const currentUser = await User.findById(userId).select('streak lastQuizCompletionDate');
 
     if (currentUser) {
-      // console.log(`Streak Check: User ${userId} - Streak hiện tại: ${currentUser.streak}`);
       const lastCompletion = currentUser.lastQuizCompletionDate;
       const lastCompletionDateString = lastCompletion ? lastCompletion.toISOString().split('T')[0] : null;
-      // console.log(`Streak Check: Ngày chơi cuối (UTC): ${lastCompletionDateString || 'Chưa chơi'}`);
 
       if (!lastCompletionDateString || lastCompletionDateString < todayDateString) {
-        // console.log("Streak Check: Chưa chơi hôm nay.");
         const yesterday = new Date(today);
         yesterday.setUTCDate(today.getUTCDate() - 1);
         const yesterdayDateString = yesterday.toISOString().split('T')[0];
-        // console.log(`Streak Check: Ngày hôm qua (UTC): ${yesterdayDateString}`);
 
         if (lastCompletionDateString === yesterdayDateString) {
-          // console.log("Streak Check: Ngày cuối là hôm qua -> Tăng streak.");
           streakUpdate = { $inc: { streak: 1 }, $set: { lastQuizCompletionDate: today } };
         } else {
-          // console.log("Streak Check: Ngày cuối KHÔNG phải hôm qua -> Reset streak về 1.");
           streakUpdate = { $set: { streak: 1, lastQuizCompletionDate: today } };
         }
       } else {
-        // console.log("Streak Check: Đã chơi hôm nay -> Không đổi streak.");
-        // streakUpdate giữ là {}
+        // Đã chơi hôm nay -> Không đổi streak
       }
     } else {
       console.warn(`Streak Check: Không tìm thấy User ${userId}.`);
     }
-    // console.log('--- Kết thúc kiểm tra Streak ---');
     // --- Kết thúc Logic Streak ---
 
 
@@ -342,7 +406,6 @@ export async function submitDynamicQuiz(req, res) {
         ...streakUpdate // Áp dụng $inc/$set streak
       },
       { new: true } // Trả về document đã update
-      // Lấy các trường cần thiết để trả về client
     ).select('experience weeklyScore streak lastQuizCompletionDate');
 
     const [attempt, updatedUser] = await Promise.all([attemptPromise, updateUserPromise]);
@@ -367,7 +430,6 @@ export async function submitDynamicQuiz(req, res) {
 // --- QUYỀN ADMIN ---
 /**
  * [Admin] Tạo một Chủ đề Quiz (QuizConfig)
- * POST /api/quiz
  */
 export async function createQuizConfig(req, res) {
   try {
@@ -385,7 +447,6 @@ export async function createQuizConfig(req, res) {
 
 /**
  * [Admin] Cập nhật Chủ đề Quiz
- * PATCH /api/quiz/:configId
  */
 export async function updateQuizConfig(req, res) {
   try {
@@ -410,15 +471,12 @@ export async function updateQuizConfig(req, res) {
 
 /**
  * [Admin] Xóa Chủ đề Quiz
- * DELETE /api/quiz/:configId
  */
 export async function deleteQuizConfig(req, res) {
   try {
     const { configId } = req.params;
     const config = await QuizConfig.findByIdAndDelete(configId);
     if (!config) return res.status(404).json({ error: 'Không tìm thấy chủ đề' });
-    // Optional: Delete associated QuizAttempts
-    // await QuizAttempt.deleteMany({ quizConfigId: configId });
     res.json({ ok: true, message: 'Đã xóa chủ đề quiz' });
   } catch (e) {
     console.error("Lỗi deleteQuizConfig:", e); // Log lỗi
