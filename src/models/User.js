@@ -14,17 +14,8 @@ lastQuizCompletionDate: { type: Date },  // Ngày hoàn thành quiz gần nhất
     avatar: { type: String },
     streak: { type: Number, default: 0 },
     biography: { type: String, default: '' },
-    lastWeekRank: {
-  type: Number,
-  default: 0,
-  index: true // Đánh index để truy vấn nhanh
-},
-// Tổng số lần đạt hạng nhất tuần
-lastWeekWinnerCount: {
-  type: Number,
-  default: 0
-},
-lastWeeklyScore: { type: Number, default: 0, index: true },
+     
+lastWeeklyScore: { type: Number, default: 0, index: true }, // Điểm tuần trước
     creationdate: { type: Date, default: Date.now },
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
     experience: { type: Number, default: 0, index: true },

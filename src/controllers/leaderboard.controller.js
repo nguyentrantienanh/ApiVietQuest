@@ -64,3 +64,60 @@ export async function getProvinceLeaderboard(req, res) {
     res.status(500).json({ error: e.message || 'Lỗi server' });
   }
 }
+// ======================================================
+// == 📍 CÁC HÀM MỚI CHO BẢNG XẾP HẠNG TUẦN TRƯỚC ==
+// ======================================================
+
+/**
+ * 📍 HÀM MỚI
+ * [Public/User] Lấy bảng xếp hạng TUẦN TRƯỚC (Toàn quốc)
+ * GET /api/leaderboard/lastweekly
+ */
+export async function getLastWeeklyLeaderboard(req, res) {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+    
+    const leaderboard = await User.find({ 
+        role: 'user',
+        lastWeeklyScore: { $gt: 0 } // Chỉ lấy người có điểm tuần trước
+      })
+      .select('name avatar lastWeeklyScore provinces_code') // Lấy điểm tuần trước
+      .sort({ lastWeeklyScore: -1 }) // Sắp xếp theo điểm tuần trước
+      .limit(limit);
+      
+    res.json(leaderboard);
+  } catch (e) {
+    console.error("Lỗi getLastWeeklyLeaderboard:", e);
+    res.status(500).json({ error: e.message || 'Lỗi server' });
+  }
+}
+
+/**
+ * 📍 HÀM MỚI
+ * [Public/User] Lấy bảng xếp hạng TUẦN TRƯỚC theo TỈNH
+ * GET /api/leaderboard/lastweekly/province/:provinceCode
+ */
+export async function getLastWeeklyProvinceLeaderboard(req, res) {
+  try {
+    const { provinceCode } = req.params;
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+
+    if (!provinceCode) {
+      return res.status(400).json({ error: 'Thiếu mã tỉnh (provinceCode)' });
+    }
+
+    const leaderboard = await User.find({
+        role: 'user',
+        provinces_code: provinceCode, // Lọc theo tỉnh
+        lastWeeklyScore: { $gt: 0 } // Chỉ lấy người có điểm tuần trước
+      })
+      .select('name avatar lastWeeklyScore') // Lấy điểm tuần trước
+      .sort({ lastWeeklyScore: -1 }) // Sắp xếp theo điểm tuần trước
+      .limit(limit);
+
+    res.json(leaderboard);
+  } catch (e) {
+    console.error("Lỗi getLastWeeklyProvinceLeaderboard:", e);
+    res.status(500).json({ error: e.message || 'Lỗi server' });
+  }
+}
