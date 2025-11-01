@@ -22,10 +22,12 @@ let districtToProvinceMapCache = null; // Dùng để tra cứu Huyện -> Tỉn
  * Lấy danh sách Tỉnh/Thành (và map Huyện -> Tỉnh) từ API
  */
 async function getProvinces() {
+  // Nếu có cache, trả về ngay
   if (provincesCache && districtToProvinceMapCache) {
     return { allProvinces: provincesCache, districtMap: districtToProvinceMapCache };
   }
   try {
+    // Gọi API lấy đầy đủ Tỉnh (depth=1) và Huyện (depth=2)
     const response = await axios.get('https://provinces.open-api.vn/api/?depth=2');
     
     if (!response.data || !Array.isArray(response.data)) {
@@ -34,18 +36,24 @@ async function getProvinces() {
     const allProvinces = [];
     const districtMap = new Map();
     for (const province of response.data) {
+        // 1. Thêm vào danh sách Tỉnh (để làm đáp án)
         allProvinces.push({ name: province.name, codename: province.codename });
+
+        // 2. Thêm các huyện/quận của tỉnh này vào bản đồ tra cứu
         if (province.districts && Array.isArray(province.districts)) {
             for (const district of province.districts) {
+                // Key: "quan_ba_dinh", Value: "thanh_pho_ha_noi"
                 districtMap.set(district.codename, province.codename);
             }
         }
     }
+    // Lưu vào cache
     provincesCache = allProvinces;
     districtToProvinceMapCache = districtMap;
     return { allProvinces: provincesCache, districtMap: districtToProvinceMapCache };
   } catch (error) {
     console.error("Lỗi khi lấy danh sách tỉnh (depth=2):", error.message);
+    // Xóa cache nếu lỗi
     provincesCache = null;
     districtToProvinceMapCache = null;
     throw error; // Ném lỗi ra ngoài
@@ -256,8 +264,8 @@ export async function startDynamicQuiz(req, res) {
 export async function submitDynamicQuiz(req, res) {
   try {
     const userId = req.user.id;
-    // 'answers' bây giờ là payload mới
-    const { configId, level, answers, startDate } = req.body; 
+    // 'answers' bây giờ là payload mới (đã được frontend gửi lên)
+    const { configId, level, answers, startDate } = req.body;
 
     if (!Array.isArray(answers) || !configId || !level || !['easy', 'medium', 'hard'].includes(level)) {
        return res.status(400).json({ error: 'Thiếu hoặc sai configId, level, hoặc answers' });
@@ -269,7 +277,7 @@ export async function submitDynamicQuiz(req, res) {
     let correctCount = 0;
     const attemptAnswers = []; // Mảng này sẽ được lưu vào DB
 
-    // --- Logic chấm điểm ---
+    // --- Logic chấm điểm (Đã sửa) ---
     let allProvinces = [];
     let districtMap = null;
     const requiresProvinceData = config.themeType.includes('PROVINCE');
@@ -309,7 +317,7 @@ export async function submitDynamicQuiz(req, res) {
 
        if (isCorrect) correctCount++;
 
-       // ▼▼▼ SỬA: Build object answer đầy đủ để lưu vào model mới ▼▼▼
+       // ▼▼▼ NÂNG CẤP: Build object answer đầy đủ để lưu vào model mới ▼▼▼
        attemptAnswers.push({
          questionHid: questionHid,
          questionText: answer.questionText, // <-- LƯU
@@ -357,7 +365,7 @@ export async function submitDynamicQuiz(req, res) {
 
 
     // --- Cập nhật DB ---
-    // ▼▼▼ SỬA: Lưu 'xpGained' vào DB ▼▼▼
+    // ▼▼▼ NÂNG CẤP: Lưu 'xpGained' vào DB ▼▼▼
     const attemptPromise = QuizAttempt.create({
       quizConfigId: configId, userId, level,
       totalQuestions, correctCount, percent,
