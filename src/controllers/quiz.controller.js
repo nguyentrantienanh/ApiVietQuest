@@ -264,7 +264,7 @@ export async function startDynamicQuiz(req, res) {
 export async function submitDynamicQuiz(req, res) {
   try {
     const userId = req.user.id;
-    // 'answers' bây giờ là payload mới (đã được frontend gửi lên)
+    // 'answers' bây giờ là payload mới
     const { configId, level, answers, startDate } = req.body;
 
     if (!Array.isArray(answers) || !configId || !level || !['easy', 'medium', 'hard'].includes(level)) {
@@ -317,7 +317,8 @@ export async function submitDynamicQuiz(req, res) {
 
        if (isCorrect) correctCount++;
 
-       // ▼▼▼ NÂNG CẤP: Build object answer đầy đủ để lưu vào model mới ▼▼▼
+       // ▼▼▼ PHẦN QUAN TRỌNG NHẤT: LƯU DỮ LIỆU MỚI ▼▼▼
+       // Code này lấy dữ liệu từ payload (answers) mà frontend gửi lên
        attemptAnswers.push({
          questionHid: questionHid,
          questionText: answer.questionText, // <-- LƯU
@@ -365,7 +366,7 @@ export async function submitDynamicQuiz(req, res) {
 
 
     // --- Cập nhật DB ---
-    // ▼▼▼ NÂNG CẤP: Lưu 'xpGained' vào DB ▼▼▼
+    // Nâng cấp: Lưu 'xpGained' vào DB
     const attemptPromise = QuizAttempt.create({
       quizConfigId: configId, userId, level,
       totalQuestions, correctCount, percent,
