@@ -15,7 +15,7 @@ export async function getProvinces() {
  }
  try {
   // Gọi API lấy đầy đủ Tỉnh (depth=1) và Huyện (depth=2)
-  const response = await axios.get('https://provinces.open-api.vn/api/?depth=2');
+  const response = await axios.get('https://api-provincesvn.onrender.com/?depth=2');
   
   if (!response.data || !Array.isArray(response.data)) {
     throw new Error('API tỉnh/thành không trả về dữ liệu mảng');
