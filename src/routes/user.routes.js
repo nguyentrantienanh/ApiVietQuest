@@ -51,7 +51,7 @@ r.get('/me', getMe);
  *               avatar:
  *                 type: string
  *                 format: binary
- *               // các field text khác tuỳ pickUserUpdate
+ *               
  */
 r.patch('/update', uploadUserAvatar, updateMe);
 
