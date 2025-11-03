@@ -25,23 +25,23 @@ export async function resetWeeklyLeaderboard() {
     // === BƯỚC 1: SAO LƯU ĐIỂM VÀ RESET VỀ 0 ===
     // Dùng aggregation pipeline để copy "weeklyScore" -> "lastWeeklyScore"
     // VÀ set "weeklyScore" = 0, "lastWeekRank" = 0 cho tất cả
-    console.log('Bắt đầu sao lưu điểm tuần trước và reset...');
+    console.log('Bắt đầu sao lưu điểm tuần trước và reset (atomic per-document)...');
+    // Thực hiện 1 updateMany với aggregation pipeline để đảm bảo mỗi document
+    // được xử lý nguyên tử: sao lưu weeklyScore -> lastWeeklyScore, reset weeklyScore -> 0
+    // và đặt lastWeekRank = 0. Dùng pipeline để tránh race giữa nhiều cập nhật.
     await User.updateMany(
-      { weeklyScore: { $gt: 0 } }, // Chỉ cập nhật ai có điểm
+      {}, // Áp dụng cho tất cả user; pipeline bên dưới xử lý điều kiện nội bộ
       [
-        { 
-          $set: { 
-            lastWeeklyScore: "$weeklyScore", // Copy
-            weeklyScore: 0,                  // Reset
-            lastWeekRank: 0                  // Reset
-          } 
+        {
+          $set: {
+            lastWeeklyScore: {
+              $cond: [{ $gt: ['$weeklyScore', 0] }, '$weeklyScore', 0]
+            },
+            weeklyScore: 0,
+            lastWeekRank: 0
+          }
         }
       ]
-    );
-    // Những người không chơi (score=0) cũng cần reset
-    await User.updateMany(
-      { weeklyScore: { $lte: 0 } },
-      { $set: { lastWeeklyScore: 0, lastWeekRank: 0 } }
     );
     
     console.log('Đã reset điểm. Bắt đầu tìm global winner...');
