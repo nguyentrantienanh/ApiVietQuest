@@ -7,7 +7,7 @@ import { User } from '../models/User.js';
  */
 export async function getLeaderboard(req, res) {
   try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '1000000', 10), 1), 1000000);
     const leaderboard = await User.find({ role: 'user' })
       .select('name avatar experience provinces_code') // Thêm province_code nếu cần hiển thị
       .sort({ experience: -1 })
@@ -25,7 +25,7 @@ export async function getLeaderboard(req, res) {
  */
 export async function getWeeklyLeaderboard(req, res) {
   try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '1000000', 10), 1), 1000000);
     const leaderboard = await User.find({ role: 'user' })
       .select('name avatar weeklyScore provinces_code') // Thêm province_code
       .sort({ weeklyScore: -1 })
@@ -44,7 +44,7 @@ export async function getWeeklyLeaderboard(req, res) {
 export async function getProvinceLeaderboard(req, res) {
   try {
     const { provinceCode } = req.params; // Lấy mã tỉnh từ URL
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '1000000', 10), 1), 1000000);
 
     if (!provinceCode) {
       return res.status(400).json({ error: 'Thiếu mã tỉnh (provinceCode)' });
@@ -75,7 +75,7 @@ export async function getProvinceLeaderboard(req, res) {
  */
 export async function getLastWeeklyLeaderboard(req, res) {
   try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '1000000', 10), 1), 1000000);
     
     const leaderboard = await User.find({ 
         role: 'user',
@@ -100,7 +100,7 @@ export async function getLastWeeklyLeaderboard(req, res) {
 export async function getLastWeeklyProvinceLeaderboard(req, res) {
   try {
     const { provinceCode } = req.params;
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '1000000', 10), 1), 1000000);
 
     if (!provinceCode) {
       return res.status(400).json({ error: 'Thiếu mã tỉnh (provinceCode)' });

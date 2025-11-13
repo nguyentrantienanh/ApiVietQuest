@@ -211,7 +211,7 @@ export async function listHeritages(req, res) {
 
     const sort = req.query.sort || '-createdAt';
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '1000000', 10), 1), 1000000);
     const skip = (page - 1) * limit;
 
     const [items, total] = await Promise.all([

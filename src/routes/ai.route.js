@@ -8,6 +8,7 @@ const r = Router();
 const GEMINI_ENDPOINT =
   process.env.GEMINI_ENDPOINT ||
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 
