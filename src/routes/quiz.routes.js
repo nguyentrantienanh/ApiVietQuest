@@ -77,12 +77,11 @@ r.post('/', auth(), requireRole('admin'), createQuizConfig);
 /**
  * @openapi
  * /quiz/{configId}:
- * get:
- * tags:
- * - Quiz (Admin) # Or Quiz (Public/User) if needed
- * summary: "Admin: Lấy chi tiết 1 Chủ đề Quiz (để sửa)"
- * security:
- * - bearerAuth: [] # Requires admin login
+ *   get:
+ *     tags: [Quiz (Public/User)]
+ *     summary: "User: Lấy chi tiết 1 Chủ đề Quiz (dùng để xem hoặc bắt đầu)"
+ *     security:
+ *       - bearerAuth: []
  * parameters:
  * - in: path
  * name: configId
@@ -90,7 +89,7 @@ r.post('/', auth(), requireRole('admin'), createQuizConfig);
  * schema:
  * type: string
  */
-r.get('/:configId', auth(), requireRole('admin'), getQuizConfigDetail);
+r.get('/:configId', auth(), getQuizConfigDetail);
 /**
  * @openapi
  * /quiz/{configId}:
