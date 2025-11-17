@@ -27,7 +27,7 @@ export async function getWeeklyLeaderboard(req, res) {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit || '1000000', 10), 1), 1000000);
     const leaderboard = await User.find({ role: 'user' })
-      .select('name avatar weeklyScore provinces_code') // Thêm province_code
+      .select('name avatar weeklyScore lastWeeklyScore provinces_code') // Thêm lastWeeklyScore và province_code
       .sort({ weeklyScore: -1 })
       .limit(limit);
     res.json(leaderboard);
