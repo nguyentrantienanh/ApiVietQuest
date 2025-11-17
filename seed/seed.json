@@ -1,7 +1,7 @@
 [
   {
     "hid": "vn-qs-0001",
-    "district_codename": "tp_ha_long",
+    "ward_codename": "tp_ha_long",
     "name": "Vịnh Hạ Long",
     "type": "di_san_thien_nhien",
     "type_code": 3,

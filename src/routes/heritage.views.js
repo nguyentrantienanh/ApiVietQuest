@@ -50,7 +50,7 @@ r.post('/heritages/new', uploadHeritageImages, async (req, res) => {
   try {
     const body = { ...req.body };
 
-    // ⚠️ BẮT BUỘC trong form phải có: hid, district_codename, name, type, level
+    // ⚠️ BẮT BUỘC trong form phải có: hid, ward_codename, name, type, level
     // Map code từ type/level
     const typeKey = body.type;   // ví dụ 'di_san_van_hoa_vat_the'
     const levelKey = body.level; // ví dụ 'cap_quoc_gia'

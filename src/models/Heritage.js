@@ -26,7 +26,7 @@ const HeritageSchema = new mongoose.Schema(
     hid: { type: String, required: true, unique: true, index: true },
 
     // Liên kết đơn vị hành chính (từ provinces.open-api.vn)
-    district_codename: { type: String, required: true, index: true }, // ví dụ: "quan_ba_dinh"
+    ward_codename: { type: String, required: true, index: true }, // ví dụ: "phuong_phuoc_my"
 
     name: { type: String, required: true, trim: true },
 
@@ -145,7 +145,8 @@ HeritageSchema.pre('validate', function(next) {
 
 // Index cho tìm kiếm & geo
 HeritageSchema.index({ coordinate: '2dsphere' });
-HeritageSchema.index({ district_codename: 1, type_code: 1, code_level: 1 });
+HeritageSchema.index({ ward_codename: 1, type_code: 1, code_level: 1 });
+
 HeritageSchema.index({ name: 'text', Summary: 'text', history: 'text', Heritage: 'text' });
 
 export const Heritage = mongoose.model('Heritage', HeritageSchema);

@@ -182,13 +182,13 @@ export async function updateHeritage(req, res) {
   }
 }
 
-// GET /api/heritages?q=&district_codename=&type_code=&code_level=&near=lat,lng&radiusKm=5&page=&limit=
+// GET /api/heritages?q=&ward_codename=&type_code=&code_level=&near=lat,lng&radiusKm=5&page=&limit=
 export async function listHeritages(req, res) {
   try {
-    const { q, district_codename, type_code, code_level, near, radiusKm } = req.query;
+    const { q, ward_codename, type_code, code_level, near, radiusKm } = req.query;
     const filter = {};
 
-    if (district_codename) filter.district_codename = district_codename;
+    if (ward_codename) filter.ward_codename = ward_codename;
     if (type_code) filter.type_code = Number(type_code);
     if (code_level) filter.code_level = Number(code_level);
 

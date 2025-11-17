@@ -39,7 +39,7 @@ r.get('/enums', enums);
  *         name: q
  *         schema: { type: string }
  *       - in: query
- *         name: district_codename
+ *         name: ward_codename
  *         schema: { type: string }
  *       - in: query
  *         name: type_code

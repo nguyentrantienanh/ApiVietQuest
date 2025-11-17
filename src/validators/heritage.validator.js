@@ -1,6 +1,6 @@
 // Validator đơn giản, đủ xài. Có thể thay bằng zod/express-validator nếu muốn.
 export function validateCreate(body) {
-  const required = ['hid', 'district_codename', 'name', 'type', 'type_code', 'level', 'code_level'];
+  const required = ['hid', 'ward_codename', 'name', 'type', 'type_code', 'level', 'code_level'];
   const missing = required.filter(k => body[k] === undefined || body[k] === null || body[k] === '');
   if (missing.length) return `Thiếu trường bắt buộc: ${missing.join(', ')}`;
 
@@ -11,7 +11,7 @@ export function validateCreate(body) {
 
 export function pickUpdatable(body) {
   const allowed = [
-    'district_codename','name','type','type_code','wiki_link',
+    'ward_codename','name','type','type_code','wiki_link',
     'coordinate','level','code_level','img','photo_library',
     'Summary','history','Heritage','tags'
   ];

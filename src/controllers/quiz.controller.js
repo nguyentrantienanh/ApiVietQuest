@@ -76,7 +76,7 @@ export async function startDynamicQuiz(req, res) {
    _id: 0, 
    hid: 1, 
    name: 1, 
-   district_codename: 1 
+    ward_codename: 1 
   };
 
   switch (config.themeType) {
@@ -165,9 +165,9 @@ export async function startDynamicQuiz(req, res) {
         ? "Di sản này thuộc tỉnh/thành nào?"
         : `Di sản '${correctHeritage.name}' thuộc tỉnh/thành nào?`;
 
-       const correctProvinceCodename = districtMap.get(correctHeritage.district_codename);
+       const correctProvinceCodename = districtMap.get(correctHeritage.ward_codename);
        if (!correctProvinceCodename) {
-         console.warn(`(Map) Không tìm thấy tỉnh cho di sản ${correctHeritage.hid} (huyện: ${correctHeritage.district_codename})`);
+         console.warn(`(Map) Không tìm thấy tỉnh cho di sản ${correctHeritage.hid} (phường/xã: ${correctHeritage.ward_codename})`);
          continue; 
        }
        
@@ -266,9 +266,9 @@ export async function submitDynamicQuiz(req, res) {
   }
   
   const heritageDetails = requiresProvinceData
-    ? await Heritage.find({ hid: { $in: answers.map(a => a.questionId) } }).select('hid district_codename')
+    ? await Heritage.find({ hid: { $in: answers.map(a => a.questionId) } }).select('hid ward_codename')
     : [];
-  const heritageMap = new Map(heritageDetails.map(h => [h.hid, h.district_codename]));
+  const heritageMap = new Map(heritageDetails.map(h => [h.hid, h.ward_codename]));
 
   for (const answer of answers) { // 'answer' là object mới
    let isCorrect = false;

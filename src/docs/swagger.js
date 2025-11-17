@@ -19,10 +19,10 @@ export const swaggerSpec = swaggerJSDoc({
       schemas: {
         Heritage: {
           type: 'object',
-          required: ['hid','district_codename','name','type','type_code','level','code_level'],
+          required: ['hid','ward_codename','name','type','type_code','level','code_level'],
           properties: {
             hid: { type: 'string', example: 'hn-bd-0001' },
-            district_codename: { type: 'string', example: 'quan_ba_dinh' },
+            ward_codename: { type: 'string', example: 'phuong_phuoc_my' },
             name: { type: 'string', example: 'Di tích A' },
             type: { type: 'string', enum: ['di_san_van_hoa_vat_the','di_san_van_hoa_phi_vat_the','di_san_thien_nhien'] },
             type_code: { type: 'integer', enum: [1,2,3], example: 1 },
