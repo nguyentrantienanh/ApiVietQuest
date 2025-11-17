@@ -8,7 +8,8 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "seed": "node seed/seed.js",
-    "seed:admin": "node seed/seed-admin.js"
+    "seed:admin": "node seed/seed-admin.js",
+    "reset:weekly": "node ./scripts/reset-weekly.js"
   },
   "dependencies": {
     "axios": "^1.13.0",

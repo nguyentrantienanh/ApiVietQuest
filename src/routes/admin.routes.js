@@ -8,6 +8,7 @@ import {
   adminDeleteUser,
   adminGetUserById
 } from '../controllers/admin.controller.js';
+import { adminResetWeekly } from '../controllers/admin.controller.js';
 import { uploadUserAvatar } from '../middlewares/upload.js';
 
 const r = Router();
@@ -162,5 +163,16 @@ r.patch('/update/:_id', uploadUserAvatar, adminUpdateUser);
  *         schema: { type: string }
  */
 r.delete('/delete/:_id', adminDeleteUser);
+
+/**
+ * @openapi
+ * /admin/reset-weekly:
+ *   post:
+ *     tags: [Admin]
+ *     summary: (Admin) Kích hoạt reset bảng xếp hạng tuần ngay lập tức
+ *     security:
+ *       - bearerAuth: []
+ */
+r.post('/reset-weekly', adminResetWeekly);
 
 export default r;

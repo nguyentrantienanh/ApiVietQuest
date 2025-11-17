@@ -4,6 +4,7 @@ import { validateAdminCreate, pickAdminUpdate } from '../validators/user.validat
 import { pickRegister } from '../validators/auth.validator.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { resetWeeklyLeaderboard } from '../services/scheduler.js';
 
 /** Helper: chuẩn hoá email */
 function normalizeEmail(email) {
@@ -194,6 +195,20 @@ export async function adminDeleteUser(req, res) {
 
     res.json({ ok: true, message: `Đã xóa user ${r.email}` });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+/**
+ * [Admin] Trigger weekly reset (manual/admin)
+ * POST /api/admin/reset-weekly
+ */
+export async function adminResetWeekly(req, res) {
+  try {
+    await resetWeeklyLeaderboard();
+    res.json({ ok: true, message: 'Weekly leaderboard reset triggered' });
+  } catch (e) {
+    console.error('Error triggering weekly reset via admin endpoint:', e);
     res.status(500).json({ error: e.message });
   }
 }
