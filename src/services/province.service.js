@@ -7,9 +7,9 @@ let wardMapCache = new Map(); // <-- SỬA 1: Đổi tên thành wardMapCache
 let lastFetched = 0;
 const CACHE_TTL = 1000 * 60 * 60 * 24; // Cache 24 giờ
 
-// SỬA 2: Dùng API mới (xat-nhap v2)
-const PROVINCES_API = 'https://vn-admin-areas-xat-nhap.onrender.com/v2/provinces';
-const WARDS_API = 'https://vn-admin-areas-xat-nhap.onrender.com/v2/wards';
+// SỬA 2: Dùng API mới (xat-nhap v2)vn-admin-areas-sap-nhap
+const PROVINCES_API = 'https://vn-admin-areas-sap-nhap.onrender.com/v2/provinces';
+const WARDS_API = 'https://vn-admin-areas-sap-nhap.onrender.com/v2/wards';
 
 /**
  * Tải và cache dữ liệu Tỉnh/Thành và Phường/Xã
