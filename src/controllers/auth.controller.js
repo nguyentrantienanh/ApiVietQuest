@@ -7,28 +7,18 @@ import { User } from '../models/User.js';
 import { validateRegister, pickRegister } from '../validators/auth.validator.js';
 import 'dotenv/config'; 
 
-// --- Cấu hình gửi mail (Port 587 - Render compatible) ---
+// --- CẤU HÌNH BREVO (SMTP) ---
+// Đảm bảo file .env có EMAIL_USER (email brevo) và EMAIL_PASS (smtp key)
 const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com",
-  port: 587,             // Dùng Port 587 (STARTTLS) thay vì 465
-  secure: false,         // false cho port 587
+  host: "smtp-relay.brevo.com", 
+  port: 587,             
+  secure: false,         
   auth: {
     user: process.env.EMAIL_USER, 
     pass: process.env.EMAIL_PASS  
   },
-  // === CÁC DÒNG QUAN TRỌNG ĐỂ CHỐNG TREO ===
-  family: 4,             // ⚠️ QUAN TRỌNG: Ép dùng IPv4 (Fix lỗi treo 99%)
-  logger: true,          // In log để debug
-  debug: true,
-  
-  // Tăng thời gian chờ để không bị ngắt ngang
-  connectionTimeout: 10000, 
-  greetingTimeout: 5000,
-  
-  // Bỏ qua lỗi chứng chỉ bảo mật (Fix lỗi SSL trên Render)
   tls: {
-    rejectUnauthorized: false,
-    ciphers: 'SSLv3'
+    rejectUnauthorized: false
   }
 });
 
@@ -46,7 +36,7 @@ function normalizeEmail(email) {
   return String(email || '').toLowerCase().trim();
 }
 
-/** Helper: rút URL công khai từ file (CloudinaryStorage) */
+/** Helper: rút URL công khai từ file */
 function fileToPublicUrl(file) {
   if (!file) return undefined;
   if (file.secure_url) return file.secure_url;
@@ -88,7 +78,6 @@ async function sendEmailOtp(email, otp, type = 'REGISTER') {
       <p>${desc}</p>
       <h1 style="color: #D97706; letter-spacing: 5px;">${otp}</h1>
       <p>Mã này sẽ hết hạn trong vòng <b>10 phút</b>.</p>
-      <p style="font-size: 12px; color: #666;">Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
       <p style="font-size: 12px; color: #999;">VietQuest Support Team</p>
     </div>
@@ -113,7 +102,6 @@ export async function register(req, res) {
     const incoming = pickRegister(req.body);
     const emailNorm = normalizeEmail(incoming.email);
 
-    // Check trùng email
     const existingUser = await User.findOne({ email: emailNorm });
     
     if (existingUser) {
@@ -121,7 +109,6 @@ export async function register(req, res) {
         return res.status(409).json({ error: 'Email đã được sử dụng.' });
       }
       
-      // Ghi đè user cũ chưa kích hoạt
       const hashed = await bcrypt.hash(incoming.password, 10);
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -141,7 +128,6 @@ export async function register(req, res) {
       });
     }
 
-    // Tạo mới
     const hashed = await bcrypt.hash(incoming.password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -230,22 +216,24 @@ export async function login(req, res) {
 }
 
 // ============================================================
-// 4. QUÊN MẬT KHẨU (FORGOT PASSWORD) - CHỈ GỬI OTP
+// 4. QUÊN MẬT KHẨU (FORGOT PASSWORD) - BƯỚC 1: GỬI OTP
 // ============================================================
 export async function forgotPassword(req, res) {
   try {
-    // ⚠️ QUAN TRỌNG: Hàm này TUYỆT ĐỐI KHÔNG check password mới
     const { email } = req.body;
+    // CHỈ KIỂM TRA EMAIL - KHÔNG KIỂM TRA MẬT KHẨU MỚI Ở ĐÂY
     if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
 
     const user = await User.findOne({ email: normalizeEmail(email) });
     if (!user) return res.status(404).json({ error: 'Email chưa được đăng ký.' });
 
+    // Tạo OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otp = otp;
     user.otpExpires = Date.now() + 5 * 60 * 1000; 
     await user.save();
 
+    // Gửi mail
     await sendEmailOtp(user.email, otp, 'FORGOT_PASS');
 
     res.json({ message: 'Mã xác thực đã được gửi tới email của bạn.' });
@@ -257,7 +245,7 @@ export async function forgotPassword(req, res) {
 }
 
 // ============================================================
-// 5. CHECK OTP & ĐỔI MẬT KHẨU
+// 5. CHECK OTP (BƯỚC 2)
 // ============================================================
 export async function verifyOtp(req, res) {
   try {
@@ -270,6 +258,9 @@ export async function verifyOtp(req, res) {
   }
 }
 
+// ============================================================
+// 6. ĐỔI MẬT KHẨU (BƯỚC 3 - RESET PASSWORD)
+// ============================================================
 export async function resetPassword(req, res) {
   try {
     const { email, otp, newPassword } = req.body;
@@ -295,7 +286,7 @@ export async function resetPassword(req, res) {
 }
 
 // ============================================================
-// 6. THÔNG TIN USER
+// 7. THÔNG TIN USER
 // ============================================================
 export async function me(req, res) {
   const user = await User.findById(req.user.id).select('email role createdAt isVerified');
