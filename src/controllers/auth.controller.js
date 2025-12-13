@@ -10,15 +10,17 @@ import 'dotenv/config';
 // --- CẤU HÌNH BREVO (SMTP) ---
 // Đảm bảo file .env có EMAIL_USER (email brevo) và EMAIL_PASS (smtp key)
 const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com", 
-  port: 587,             
-  secure: false,         
+  service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER, 
-    pass: process.env.EMAIL_PASS  
+    user: process.env.EMAIL_USER, // Lấy từ biến môi trường
+    pass: process.env.EMAIL_PASS  // Lấy từ biến môi trường
   },
-  tls: {
-    rejectUnauthorized: false
+  // 👇 CÁC DÒNG QUAN TRỌNG ĐỂ RENDER CHẠY ĐƯỢC 👇
+  family: 4,               // Ép dùng IPv4 (Chìa khóa để không bị treo trên Render)
+  logger: true,            // Bật log để theo dõi
+  debug: true,             // Bật debug
+  tls: { 
+    rejectUnauthorized: false // Bỏ qua lỗi chứng chỉ SSL
   }
 });
 
