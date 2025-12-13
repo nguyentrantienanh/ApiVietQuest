@@ -9,15 +9,18 @@ import 'dotenv/config';
 
 // --- Cấu hình gửi mail (Port 587 - Render compatible) ---
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // true for 465, false for other ports
+  service: 'gmail', // Dùng service để node tự định nghĩa host/port chuẩn nhất
   auth: {
-    user: process.env.EMAIL_USER, 
-    pass: process.env.EMAIL_PASS  
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   },
+  // --- CÁC DÒNG QUAN TRỌNG ĐỂ KHÔNG BỊ TREO ---
+  family: 4,              // [QUAN TRỌNG NHẤT] Ép buộc dùng IPv4. Render mặc định dùng IPv6 hay bị Google lờ đi.
+  logger: true,           // In log chi tiết để xem Google trả lời gì
+  debug: true,            // Bật chế độ debug lỗi
+  proxy: null,            // Đảm bảo không dùng proxy lạ
   tls: {
-    rejectUnauthorized: false // Fix lỗi SSL trên một số server cloud
+    rejectUnauthorized: false // Bỏ qua lỗi chứng chỉ SSL nếu server Render có vấn đề
   }
 });
 
