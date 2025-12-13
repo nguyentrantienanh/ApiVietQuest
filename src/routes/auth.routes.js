@@ -4,10 +4,11 @@ import {
   login, 
   me, 
   register, 
-  verifyAccount,    // Nhớ import
-  forgotPassword,   // Nhớ import
-  verifyOtp,        // Nhớ import
-  resetPassword     // Nhớ import
+  verifyAccount,    
+  forgotPassword,   
+  verifyOtp,        
+  resetPassword,   
+  resendOtp
 } from '../controllers/auth.controller.js';
 import { auth } from '../middlewares/auth.js';
 import { uploadUserAvatar } from '../middlewares/upload.js';
@@ -36,5 +37,7 @@ r.post('/verify-otp', verifyOtp);
 
 // Bước 3: Gửi email + OTP + Pass mới -> Đổi mật khẩu
 r.post('/reset-password', resetPassword);
+// Bước 4: Gửi lại OTP
+r.post('/resend-otp', resendOtp);
 
 export default r;

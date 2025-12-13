@@ -295,7 +295,51 @@ export async function resetPassword(req, res) {
     res.status(500).json({ error: 'Lỗi server.' });
   }
 }
+// ============================================================
+// 7. GỬI LẠI OTP (RESEND)
+// ============================================================
+export async function resendOtp(req, res) {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Vui lòng cung cấp email.' });
 
+    const emailNorm = normalizeEmail(email);
+    const user = await User.findOne({ email: emailNorm });
+
+    if (!user) return res.status(404).json({ error: 'Email không tồn tại trong hệ thống.' });
+
+    // Nếu tài khoản đã kích hoạt rồi thì không cho gửi lại mã kích hoạt nữa
+    if (user.isVerified) {
+      return res.status(400).json({ error: 'Tài khoản này đã được kích hoạt rồi. Vui lòng đăng nhập.' });
+    }
+
+    // 🔥 CHECK LIMIT 5 LẦN/NGÀY (Dùng lại hàm anh đã viết)
+    try {
+      await checkOtpLimit(user);
+    } catch (err) {
+      return res.status(429).json({ error: err.message });
+    }
+
+    // Tạo OTP mới
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otp = otp;
+    user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 phút
+
+    // Save user (đã bao gồm việc tăng otpRequestCount trong checkOtpLimit nhưng chưa save)
+    await user.save();
+
+    // Gửi mail
+    await sendEmailOtp(user.email, otp, 'REGISTER'); // Dùng type REGISTER hoặc tạo type RESEND tuỳ ý
+
+    res.json({ 
+      message: `Đã gửi lại mã mới. (Lần thứ ${user.otpRequestCount}/5 trong ngày)` 
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Lỗi server.' });
+  }
+}
 export async function me(req, res) {
     const user = await User.findById(req.user.id).select('email role createdAt isVerified');
     res.json({ user });
