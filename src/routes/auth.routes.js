@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { login, me, register, forgotPassword, verifyOtp, resetPassword } from '../controllers/auth.controller.js';
 import { auth } from '../middlewares/auth.js';
 import { uploadUserAvatar } from '../middlewares/upload.js';
-import { verifyAccount, resendOtp } from '../controllers/auth.controller.js'; // Nhớ import
+import { verifyAccount } from '../controllers/auth.controller.js'; // Nhớ import
 const r = Router();
 
 /**
