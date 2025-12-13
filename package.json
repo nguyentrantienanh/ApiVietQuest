@@ -12,6 +12,7 @@
     "reset:weekly": "node ./scripts/reset-weekly.js"
   },
   "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
     "axios": "^1.13.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^1.41.3",

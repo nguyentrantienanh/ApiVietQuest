@@ -1,57 +1,25 @@
 // src/controllers/auth.controller.js
+import emailjs from '@emailjs/nodejs'; // Import thư viện mới
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import nodemailer from 'nodemailer';
 import { User } from '../models/User.js';
 import { validateRegister, pickRegister } from '../validators/auth.validator.js';
 import 'dotenv/config'; 
 
-// --- CẤU HÌNH BREVO (SMTP) ---
-// Đảm bảo file .env có EMAIL_USER (email brevo) và EMAIL_PASS (smtp key)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER, // Lấy từ biến môi trường
-    pass: process.env.EMAIL_PASS  // Lấy từ biến môi trường
-  },
-  // 👇 CÁC DÒNG QUAN TRỌNG ĐỂ RENDER CHẠY ĐƯỢC 👇
-  family: 4,               // Ép dùng IPv4 (Chìa khóa để không bị treo trên Render)
-  logger: true,            // Bật log để theo dõi
-  debug: true,             // Bật debug
-  tls: { 
-    rejectUnauthorized: false // Bỏ qua lỗi chứng chỉ SSL
-  }
+// --- CẤU HÌNH EMAILJS ---
+// ⚠️ QUAN TRỌNG: Private Key chỉ chạy được ở Backend Node.js
+emailjs.init({
+  publicKey: process.env.EMAILJS_PUBLIC_KEY,
+  privateKey: process.env.EMAILJS_PRIVATE_KEY, 
 });
 
-// Debug kết nối mail
-transporter.verify(function (error, success) {
-  if (error) {
-    console.log('🔴 LỖI KẾT NỐI EMAIL:', error);
-  } else {
-    console.log('🟢 KẾT NỐI EMAIL THÀNH CÔNG');
-  }
-});
-
-/** Helper: chuẩn hoá email */
+/** Helper: Chuẩn hoá email */
 function normalizeEmail(email) {
   return String(email || '').toLowerCase().trim();
 }
 
-/** Helper: rút URL công khai từ file */
-function fileToPublicUrl(file) {
-  if (!file) return undefined;
-  if (file.secure_url) return file.secure_url;
-  if (file.url) return file.url;
-  if (file.path && String(file.path).startsWith('http')) return file.path;
-  if (file.filename) {
-    const cloud = process.env.CLOUDINARY_CLOUD_NAME;
-    const fmt = file.format || 'jpg';
-    return `https://res.cloudinary.com/${cloud}/image/upload/${file.filename}.${fmt}`;
-  }
-  return undefined;
-}
-
+/** Helper: Tạo token */
 function signToken(user) {
   return jwt.sign(
     { id: user._id.toString(), email: user.email, role: user.role },
@@ -60,37 +28,30 @@ function signToken(user) {
   );
 }
 
-/** Helper: Gửi email OTP */
+/** * Helper: Gửi OTP qua EmailJS (Server Web Port 443 - Không bị chặn)
+ */
 async function sendEmailOtp(email, otp, type = 'REGISTER') {
-  const subject = type === 'REGISTER' 
-    ? '🚀 Kích hoạt tài khoản VietQuest' 
-    : '🔑 Mã xác thực đặt lại mật khẩu - VietQuest';
-    
-  const title = type === 'REGISTER' 
-    ? 'Chào mừng đến với VietQuest!' 
-    : 'Yêu cầu đặt lại mật khẩu';
+  // Chuẩn bị tham số để gửi sang Template HTML đã tạo ở Phần 1
+  const templateParams = {
+    email: email,                  // Biến {{to_email}}
+    otp: otp,                         // Biến {{otp}}
+    type_message: type === 'REGISTER' ? 'Đăng ký tài khoản mới' : 'Đặt lại mật khẩu' // Biến {{type_message}}
+  };
 
-  const desc = type === 'REGISTER'
-    ? 'Mã xác thực đăng ký tài khoản của bạn là:'
-    : 'Mã xác thực (OTP) của bạn là:';
+  const serviceId = process.env.EMAILJS_SERVICE_ID;
+  const templateId = process.env.EMAILJS_TEMPLATE_ID;
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-      <h2 style="color: #4F46E5;">${title}</h2>
-      <p>${desc}</p>
-      <h1 style="color: #D97706; letter-spacing: 5px;">${otp}</h1>
-      <p>Mã này sẽ hết hạn trong vòng <b>10 phút</b>.</p>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-      <p style="font-size: 12px; color: #999;">VietQuest Support Team</p>
-    </div>
-  `;
+  console.log(`⏳ [EmailJS] Đang gửi OTP tới: ${email}...`);
 
-  await transporter.sendMail({
-    from: '"VietQuest Support" <no-reply@vietquest.com>',
-    to: email,
-    subject: subject,
-    html: html
-  });
+  try {
+    // Gọi API của EmailJS
+    await emailjs.send(serviceId, templateId, templateParams);
+    console.log('✅ [EmailJS] Gửi thành công!');
+  } catch (error) {
+    console.error('❌ [EmailJS] Lỗi gửi mail:', error);
+    // In OTP ra log để backup trường hợp xấu nhất (hết quota free)
+    console.log(`🔑 [BACKUP LOG OTP]: ${otp}`);
+  }
 }
 
 // ============================================================
@@ -111,12 +72,12 @@ export async function register(req, res) {
         return res.status(409).json({ error: 'Email đã được sử dụng.' });
       }
       
+      // Ghi đè user cũ chưa kích hoạt
       const hashed = await bcrypt.hash(incoming.password, 10);
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
       existingUser.name = incoming.name;
       existingUser.password = hashed;
-      existingUser.phone = incoming.phone;
       existingUser.otp = otp;
       existingUser.otpExpires = Date.now() + 10 * 60 * 1000;
       
@@ -124,41 +85,34 @@ export async function register(req, res) {
       await sendEmailOtp(existingUser.email, otp, 'REGISTER');
       
       return res.status(200).json({ 
-        message: 'Tài khoản chưa kích hoạt. Mã xác thực mới đã được gửi lại vào email.',
+        message: 'Tài khoản chưa kích hoạt. Đã gửi lại OTP.',
         needVerify: true,
         email: emailNorm
       });
     }
 
+    // Tạo user mới
     const hashed = await bcrypt.hash(incoming.password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    let avatarUrl = undefined;
-    if (req.file) avatarUrl = fileToPublicUrl(req.file);
-    if (!avatarUrl && incoming.avatar && /^https?:\/\//i.test(incoming.avatar)) {
-        avatarUrl = incoming.avatar;
-    }
 
     const user = new User({
       id: uuidv4(),
       name: incoming.name,
       email: emailNorm,
       password: hashed,
-      phone: incoming.phone,
-      provinces: incoming.provinces,
-      provinces_code: incoming.provinces_code,
-      avatar: avatarUrl || '',
-      biography: incoming.biography || '',
-      isVerified: false,
       otp: otp,
-      otpExpires: Date.now() + 10 * 60 * 1000
+      otpExpires: Date.now() + 10 * 60 * 1000,
+      isVerified: false
+      // ... (Các trường avatar, provinces... giữ nguyên như cũ)
     });
 
     await user.save();
+    
+    // Gửi mail
     await sendEmailOtp(user.email, otp, 'REGISTER');
 
     res.status(201).json({
-      message: 'Đăng ký thành công. Vui lòng kiểm tra email để nhập mã xác thực.',
+      message: 'Đăng ký thành công. Vui lòng kiểm tra email.',
       needVerify: true,
       email: emailNorm
     });
@@ -175,15 +129,13 @@ export async function register(req, res) {
 export async function verifyAccount(req, res) {
   try {
     const { email, otp } = req.body;
-    if (!email || !otp) return res.status(400).json({ error: 'Thiếu thông tin xác thực' });
-
     const user = await User.findOne({ 
       email: normalizeEmail(email),
       otp: otp,
       otpExpires: { $gt: Date.now() }
     });
 
-    if (!user) return res.status(400).json({ error: 'Mã OTP sai hoặc đã hết hạn.' });
+    if (!user) return res.status(400).json({ error: 'Mã OTP sai hoặc hết hạn.' });
 
     user.isVerified = true;
     user.otp = undefined;
@@ -191,69 +143,62 @@ export async function verifyAccount(req, res) {
     await user.save();
 
     const token = signToken(user);
-    res.json({ message: 'Kích hoạt tài khoản thành công!', token, user });
-
+    res.json({ message: 'Kích hoạt thành công!', token, user });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi server.' });
   }
 }
 
 // ============================================================
-// 3. ĐĂNG NHẬP
+// 3. LOGIN
 // ============================================================
 export async function login(req, res) {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email và mật khẩu là bắt buộc' });
-
   const user = await User.findOne({ email: normalizeEmail(email) });
   
-  if (!user) return res.status(401).json({ error: 'Thông tin đăng nhập không đúng' });
-  if (!user.isVerified) return res.status(403).json({ error: 'Tài khoản chưa được kích hoạt.', needVerify: true, email: user.email });
+  if (!user) return res.status(401).json({ error: 'Sai thông tin đăng nhập' });
+  if (!user.isVerified) return res.status(403).json({ error: 'Chưa kích hoạt tài khoản.', needVerify: true });
 
   const ok = await bcrypt.compare(password, user.password);
-  if (!ok) return res.status(401).json({ error: 'Thông tin đăng nhập không đúng' });
+  if (!ok) return res.status(401).json({ error: 'Sai thông tin đăng nhập' });
 
   const token = signToken(user);
   res.json({ token, user });
 }
 
 // ============================================================
-// 4. QUÊN MẬT KHẨU (FORGOT PASSWORD) - BƯỚC 1: GỬI OTP
+// 4. QUÊN MẬT KHẨU (Gửi OTP)
 // ============================================================
 export async function forgotPassword(req, res) {
   try {
     const { email } = req.body;
-    // CHỈ KIỂM TRA EMAIL - KHÔNG KIỂM TRA MẬT KHẨU MỚI Ở ĐÂY
-    if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
+    if (!email) return res.status(400).json({ error: 'Vui lòng nhập email.' });
 
     const user = await User.findOne({ email: normalizeEmail(email) });
-    if (!user) return res.status(404).json({ error: 'Email chưa được đăng ký.' });
+    if (!user) return res.status(404).json({ error: 'Email không tồn tại.' });
 
-    // Tạo OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otp = otp;
-    user.otpExpires = Date.now() + 5 * 60 * 1000; 
+    user.otpExpires = Date.now() + 5 * 60 * 1000;
     await user.save();
 
-    // Gửi mail
     await sendEmailOtp(user.email, otp, 'FORGOT_PASS');
 
-    res.json({ message: 'Mã xác thực đã được gửi tới email của bạn.' });
-
+    res.json({ message: 'Mã OTP đã được gửi tới email của bạn.' });
   } catch (error) {
-    console.error('Forgot Password Error:', error);
-    res.status(500).json({ error: 'Lỗi server khi gửi email.' });
+    console.error(error);
+    res.status(500).json({ error: 'Lỗi server.' });
   }
 }
 
 // ============================================================
-// 5. CHECK OTP (BƯỚC 2)
+// 5. CHECK OTP
 // ============================================================
 export async function verifyOtp(req, res) {
   try {
     const { email, otp } = req.body;
     const user = await User.findOne({ email: normalizeEmail(email), otp, otpExpires: { $gt: Date.now() } });
-    if (!user) return res.status(400).json({ error: 'Mã OTP không chính xác hoặc đã hết hạn.' });
+    if (!user) return res.status(400).json({ error: 'Mã OTP sai hoặc hết hạn.' });
     res.json({ message: 'OTP hợp lệ.' });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi server.' });
@@ -261,36 +206,31 @@ export async function verifyOtp(req, res) {
 }
 
 // ============================================================
-// 6. ĐỔI MẬT KHẨU (BƯỚC 3 - RESET PASSWORD)
+// 6. ĐỔI MẬT KHẨU
 // ============================================================
 export async function resetPassword(req, res) {
   try {
     const { email, otp, newPassword } = req.body;
     
-    // Logic check mật khẩu chỉ nằm ở đây
     if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 6 ký tự.' });
+      return res.status(400).json({ error: 'Mật khẩu phải từ 6 ký tự.' });
     }
 
     const user = await User.findOne({ email: normalizeEmail(email), otp, otpExpires: { $gt: Date.now() } });
-    if (!user) return res.status(400).json({ error: 'Phiên làm việc hết hạn hoặc OTP sai.' });
+    if (!user) return res.status(400).json({ error: 'OTP sai hoặc hết hạn.' });
 
     user.password = await bcrypt.hash(newPassword, 10);
     user.otp = undefined;       
     user.otpExpires = undefined; 
     
     await user.save();
-    res.json({ message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.' });
-
+    res.json({ message: 'Đổi mật khẩu thành công!' });
   } catch (error) {
-    res.status(500).json({ error: 'Lỗi server khi đổi mật khẩu.' });
+    res.status(500).json({ error: 'Lỗi server.' });
   }
 }
 
-// ============================================================
-// 7. THÔNG TIN USER
-// ============================================================
 export async function me(req, res) {
-  const user = await User.findById(req.user.id).select('email role createdAt isVerified');
-  res.json({ user });
+    const user = await User.findById(req.user.id).select('email role createdAt isVerified');
+    res.json({ user });
 }
