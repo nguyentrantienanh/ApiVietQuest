@@ -20,7 +20,13 @@ lastWeeklyScore: { type: Number, default: 0, index: true }, // Điểm tuần tr
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
     experience: { type: Number, default: 0, index: true },
     weeklyScore: { type: Number, default: 0, index: true },
+    // === [MỚI] === Trạng thái xác thực email
+    isVerified: { type: Boolean, default: false },
+    // === [MỚI] === Thêm field cho OTP
+    otp: { type: String }, 
+    otpExpires: { type: Date }
   },
+   
   { timestamps: true }
 );
 

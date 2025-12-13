@@ -1,9 +1,9 @@
 // src/routes/auth.routes.js
 import { Router } from 'express';
-import { login, me, register } from '../controllers/auth.controller.js';
+import { login, me, register, forgotPassword, verifyOtp, resetPassword } from '../controllers/auth.controller.js';
 import { auth } from '../middlewares/auth.js';
 import { uploadUserAvatar } from '../middlewares/upload.js';
-
+import { verifyAccount, resendOtp } from '../controllers/auth.controller.js'; // Nhớ import
 const r = Router();
 
 /**
@@ -91,8 +91,26 @@ r.post('/login', login);
  *     responses:
  *       201: { description: Created }
  */
-r.post('/register', uploadUserAvatar, register);
 
+r.post('/register', uploadUserAvatar, register);
+/**
+ * @openapi
+ * /auth/verify-account:
+ * post:
+ * tags: [Auth]
+ * summary: Kích hoạt tài khoản bằng OTP sau khi đăng ký
+ * requestBody:
+ * required: true
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required: [email, otp]
+ * properties:
+ * email: { type: string }
+ * otp: { type: string }
+ */
+r.post('/verify-account', verifyAccount);
 /**
  * @openapi
  * /auth/me:
@@ -106,5 +124,59 @@ r.post('/register', uploadUserAvatar, register);
  *       401: { description: Unauthorized }
  */
 r.get('/me', auth(true), me);
+// === ROUTES MỚI CHO QUÊN MẬT KHẨU ===
 
+/**
+ * @openapi
+ * /auth/forgot-password:
+ * post:
+ * summary: Gửi OTP về email
+ * tags: [Auth]
+ * requestBody:
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required: [email]
+ * properties:
+ * email: { type: string }
+ */
+r.post('/forgot-password', forgotPassword);
+
+/**
+ * @openapi
+ * /auth/verify-otp:
+ * post:
+ * summary: Kiểm tra OTP
+ * tags: [Auth]
+ * requestBody:
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required: [email, otp]
+ * properties:
+ * email: { type: string }
+ * otp: { type: string }
+ */
+r.post('/verify-otp', verifyOtp);
+
+/**
+ * @openapi
+ * /auth/reset-password:
+ * post:
+ * summary: Đặt mật khẩu mới
+ * tags: [Auth]
+ * requestBody:
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * required: [email, otp, newPassword]
+ * properties:
+ * email: { type: string }
+ * otp: { type: string }
+ * newPassword: { type: string }
+ */
+r.post('/reset-password', resetPassword);
 export default r;
