@@ -9,7 +9,7 @@ import 'dotenv/config';
 
 // --- Cấu hình gửi mail (Port 587 - Render compatible) ---
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  host: "smtp-relay.brevo.com",
   port: 587,             // Dùng Port 587 (STARTTLS) thay vì 465
   secure: false,         // false cho port 587
   auth: {
