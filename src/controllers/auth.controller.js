@@ -1,5 +1,5 @@
 // src/controllers/auth.controller.js
-import emailjs from '@emailjs/nodejs'; // Import thư viện mới
+import emailjs from '@emailjs/nodejs';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
@@ -8,18 +8,17 @@ import { validateRegister, pickRegister } from '../validators/auth.validator.js'
 import 'dotenv/config'; 
 
 // --- CẤU HÌNH EMAILJS ---
-// ⚠️ QUAN TRỌNG: Private Key chỉ chạy được ở Backend Node.js
 emailjs.init({
   publicKey: process.env.EMAILJS_PUBLIC_KEY,
   privateKey: process.env.EMAILJS_PRIVATE_KEY, 
 });
 
-/** Helper: Chuẩn hoá email */
+// Helper: Chuẩn hoá email
 function normalizeEmail(email) {
   return String(email || '').toLowerCase().trim();
 }
 
-/** Helper: Tạo token */
+// Helper: Tạo token
 function signToken(user) {
   return jwt.sign(
     { id: user._id.toString(), email: user.email, role: user.role },
@@ -28,28 +27,65 @@ function signToken(user) {
   );
 }
 
-/** * Helper: Gửi OTP qua EmailJS (Server Web Port 443 - Không bị chặn)
- */
+// Helper: Rút URL avatar
+function fileToPublicUrl(file) {
+  if (!file) return undefined;
+  if (file.secure_url) return file.secure_url;
+  if (file.url) return file.url;
+  if (file.path && String(file.path).startsWith('http')) return file.path;
+  if (file.filename) {
+    const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+    const fmt = file.format || 'jpg';
+    return `https://res.cloudinary.com/${cloud}/image/upload/${file.filename}.${fmt}`;
+  }
+  return undefined;
+}
+
+// --- 🔥 HELPER MỚI: CHECK LIMIT 5 LẦN / 24 GIỜ 🔥 ---
+async function checkOtpLimit(user) {
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000; // 24 giờ tính bằng mili-giây
+
+  // 1. Nếu chưa có mốc thời gian hoặc đã qua 24h kể từ lần gửi đầu -> Reset chu kỳ mới
+  if (!user.otpFirstSentAt || (now - new Date(user.otpFirstSentAt).getTime() > ONE_DAY)) {
+    user.otpRequestCount = 0;
+    user.otpFirstSentAt = now; // Đặt mốc thời gian mới bắt đầu từ bây giờ
+  }
+
+  // 2. Kiểm tra nếu đã đủ 5 lần trong chu kỳ hiện tại
+  if (user.otpRequestCount >= 5) {
+    // Tính xem còn bao lâu nữa mới được gửi lại
+    const resetTime = new Date(user.otpFirstSentAt).getTime() + ONE_DAY;
+    const hoursLeft = Math.ceil((resetTime - now) / (60 * 60 * 1000));
+    
+    throw new Error(`Bạn đã hết lượt gửi OTP trong ngày (5/5). Vui lòng thử lại sau ${hoursLeft} giờ.`);
+  }
+
+  // 3. Nếu hợp lệ -> Tăng số lần gửi lên
+  user.otpRequestCount += 1;
+  // Lưu ý: Việc lưu (save) sẽ được thực hiện ở hàm gọi (register/forgotPassword)
+}
+
+// --- GỬI MAIL QUA EMAILJS ---
 async function sendEmailOtp(email, otp, type = 'REGISTER') {
-  // Chuẩn bị tham số để gửi sang Template HTML đã tạo ở Phần 1
   const templateParams = {
-    email: email,                  // Biến {{to_email}}
-    otp: otp,                         // Biến {{otp}}
-    type_message: type === 'REGISTER' ? 'Đăng ký tài khoản mới' : 'Đặt lại mật khẩu' // Biến {{type_message}}
+    email: email,       
+    otp: otp,
+    type_message: type === 'REGISTER' ? 'Đăng ký tài khoản' : 'Lấy lại mật khẩu',
+    title: 'Mã xác thực' 
   };
 
   const serviceId = process.env.EMAILJS_SERVICE_ID;
   const templateId = process.env.EMAILJS_TEMPLATE_ID;
 
-  console.log(`⏳ [EmailJS] Đang gửi OTP tới: ${email}...`);
+  console.log(`⏳ [EmailJS] Đang gửi OTP tới: ${email} ...`);
 
   try {
-    // Gọi API của EmailJS
     await emailjs.send(serviceId, templateId, templateParams);
     console.log('✅ [EmailJS] Gửi thành công!');
   } catch (error) {
     console.error('❌ [EmailJS] Lỗi gửi mail:', error);
-    // In OTP ra log để backup trường hợp xấu nhất (hết quota free)
+    // Vẫn in log để test nếu lỡ hết quota EmailJS
     console.log(`🔑 [BACKUP LOG OTP]: ${otp}`);
   }
 }
@@ -72,7 +108,13 @@ export async function register(req, res) {
         return res.status(409).json({ error: 'Email đã được sử dụng.' });
       }
       
-      // Ghi đè user cũ chưa kích hoạt
+      // 🔥 Kiểm tra giới hạn 5 lần/ngày
+      try {
+        await checkOtpLimit(existingUser);
+      } catch (err) {
+        return res.status(429).json({ error: err.message });
+      }
+
       const hashed = await bcrypt.hash(incoming.password, 10);
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -85,15 +127,17 @@ export async function register(req, res) {
       await sendEmailOtp(existingUser.email, otp, 'REGISTER');
       
       return res.status(200).json({ 
-        message: 'Tài khoản chưa kích hoạt. Đã gửi lại OTP.',
+        message: `Đã gửi lại OTP. (Lần thứ ${existingUser.otpRequestCount}/5 trong ngày)`,
         needVerify: true,
         email: emailNorm
       });
     }
 
-    // Tạo user mới
+    // USER MỚI
     const hashed = await bcrypt.hash(incoming.password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    let avatarUrl = undefined;
+    if (req.file) avatarUrl = fileToPublicUrl(req.file);
 
     const user = new User({
       id: uuidv4(),
@@ -102,17 +146,24 @@ export async function register(req, res) {
       password: hashed,
       otp: otp,
       otpExpires: Date.now() + 10 * 60 * 1000,
-      isVerified: false
-      // ... (Các trường avatar, provinces... giữ nguyên như cũ)
+      isVerified: false,
+      
+      // Khởi tạo bộ đếm
+      otpRequestCount: 1,
+      otpFirstSentAt: Date.now(),
+      
+      avatar: avatarUrl || '',
+      phone: incoming.phone,
+      provinces: incoming.provinces,
+      provinces_code: incoming.provinces_code,
+      biography: incoming.biography
     });
 
     await user.save();
-    
-    // Gửi mail
     await sendEmailOtp(user.email, otp, 'REGISTER');
 
     res.status(201).json({
-      message: 'Đăng ký thành công. Vui lòng kiểm tra email.',
+      message: 'Đăng ký thành công. Đã gửi OTP.',
       needVerify: true,
       email: emailNorm
     });
@@ -140,6 +191,10 @@ export async function verifyAccount(req, res) {
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
+    
+    // ⚠️ LƯU Ý: Không reset otpRequestCount về 0 ở đây nữa
+    // Để đảm bảo giới hạn cứng 5 lần/ngày.
+    
     await user.save();
 
     const token = signToken(user);
@@ -167,7 +222,7 @@ export async function login(req, res) {
 }
 
 // ============================================================
-// 4. QUÊN MẬT KHẨU (Gửi OTP)
+// 4. QUÊN MẬT KHẨU
 // ============================================================
 export async function forgotPassword(req, res) {
   try {
@@ -177,14 +232,22 @@ export async function forgotPassword(req, res) {
     const user = await User.findOne({ email: normalizeEmail(email) });
     if (!user) return res.status(404).json({ error: 'Email không tồn tại.' });
 
+    // 🔥 Kiểm tra giới hạn 5 lần/ngày
+    try {
+      await checkOtpLimit(user);
+    } catch (err) {
+      return res.status(429).json({ error: err.message });
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otp = otp;
     user.otpExpires = Date.now() + 5 * 60 * 1000;
-    await user.save();
+    
+    await user.save(); // Lưu otpRequestCount mới tăng
 
     await sendEmailOtp(user.email, otp, 'FORGOT_PASS');
 
-    res.json({ message: 'Mã OTP đã được gửi tới email của bạn.' });
+    res.json({ message: `Mã OTP đã gửi. (Lần thứ ${user.otpRequestCount}/5 trong ngày)` });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Lỗi server.' });
@@ -199,6 +262,7 @@ export async function verifyOtp(req, res) {
     const { email, otp } = req.body;
     const user = await User.findOne({ email: normalizeEmail(email), otp, otpExpires: { $gt: Date.now() } });
     if (!user) return res.status(400).json({ error: 'Mã OTP sai hoặc hết hạn.' });
+    
     res.json({ message: 'OTP hợp lệ.' });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi server.' });
@@ -213,18 +277,20 @@ export async function resetPassword(req, res) {
     const { email, otp, newPassword } = req.body;
     
     if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ error: 'Mật khẩu phải từ 6 ký tự.' });
+      return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 6 ký tự.' });
     }
 
     const user = await User.findOne({ email: normalizeEmail(email), otp, otpExpires: { $gt: Date.now() } });
-    if (!user) return res.status(400).json({ error: 'OTP sai hoặc hết hạn.' });
+    if (!user) return res.status(400).json({ error: 'Phiên làm việc hết hạn hoặc OTP sai.' });
 
     user.password = await bcrypt.hash(newPassword, 10);
     user.otp = undefined;       
     user.otpExpires = undefined; 
     
+    // ⚠️ Cũng KHÔNG reset otpRequestCount ở đây.
+    
     await user.save();
-    res.json({ message: 'Đổi mật khẩu thành công!' });
+    res.json({ message: 'Đặt lại mật khẩu thành công!' });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi server.' });
   }

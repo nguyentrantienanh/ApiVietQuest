@@ -22,6 +22,11 @@ lastWeeklyScore: { type: Number, default: 0, index: true }, // Điểm tuần tr
     weeklyScore: { type: Number, default: 0, index: true },
     // === [MỚI] === Trạng thái xác thực email
     isVerified: { type: Boolean, default: false },
+    // Đếm số lần đã gửi trong ngày
+  otpRequestCount: { type: Number, default: 0 }, 
+  
+  // Thời điểm gửi OTP đầu tiên trong chu kỳ 24h
+  otpFirstSentAt: { type: Date, default: null },
     // === [MỚI] === Thêm field cho OTP
     otp: { type: String }, 
     otpExpires: { type: Date }
