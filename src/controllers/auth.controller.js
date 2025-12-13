@@ -2,23 +2,26 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import nodemailer from 'nodemailer'; // Import nodemailer
+import nodemailer from 'nodemailer';
 import { User } from '../models/User.js';
 import { validateRegister, pickRegister } from '../validators/auth.validator.js';
 import 'dotenv/config'; 
 
-// --- Cấu hình gửi mail ---
+// --- Cấu hình gửi mail (Port 587 - Render compatible) ---
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false,
+  secure: false, // true for 465, false for other ports
   auth: {
     user: process.env.EMAIL_USER, 
     pass: process.env.EMAIL_PASS  
+  },
+  tls: {
+    rejectUnauthorized: false // Fix lỗi SSL trên một số server cloud
   }
 });
 
-// Debug kết nối mail khi khởi động
+// Debug kết nối mail
 transporter.verify(function (error, success) {
   if (error) {
     console.log('🔴 LỖI KẾT NỐI EMAIL:', error);
@@ -35,7 +38,7 @@ function normalizeEmail(email) {
 /** Helper: rút URL công khai từ file (CloudinaryStorage) */
 function fileToPublicUrl(file) {
   if (!file) return undefined;
-  if (file.secure_url) return file.secure_url;          // ưu tiên https
+  if (file.secure_url) return file.secure_url;
   if (file.url) return file.url;
   if (file.path && String(file.path).startsWith('http')) return file.path;
   if (file.filename) {
@@ -54,9 +57,7 @@ function signToken(user) {
   );
 }
 
-/**
- * Helper: Gửi email OTP (Dùng chung cho Register & Forgot Pass)
- */
+/** Helper: Gửi email OTP */
 async function sendEmailOtp(email, otp, type = 'REGISTER') {
   const subject = type === 'REGISTER' 
     ? '🚀 Kích hoạt tài khoản VietQuest' 
@@ -77,25 +78,22 @@ async function sendEmailOtp(email, otp, type = 'REGISTER') {
       <h1 style="color: #D97706; letter-spacing: 5px;">${otp}</h1>
       <p>Mã này sẽ hết hạn trong vòng <b>10 phút</b>.</p>
       <p style="font-size: 12px; color: #666;">Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
-      <p style="font-size: 12px; color: #666;"> email hỗ trợ vui lòng không trả lời.</p>
-      <p style="font-size: 12px; color: #666;"> VietQuest Support</p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+      <p style="font-size: 12px; color: #999;">VietQuest Support Team</p>
     </div>
   `;
 
-  const mailOptions = {
+  await transporter.sendMail({
     from: '"VietQuest Support" <no-reply@vietquest.com>',
     to: email,
     subject: subject,
     html: html
-  };
-
-  await transporter.sendMail(mailOptions);
+  });
 }
 
 // ============================================================
-// 1. ĐĂNG KÝ (REGISTER) - YÊU CẦU XÁC THỰC
+// 1. ĐĂNG KÝ (REGISTER)
 // ============================================================
-
 export async function register(req, res) {
   try {
     const preErr = validateRegister(req.body);
@@ -108,12 +106,11 @@ export async function register(req, res) {
     const existingUser = await User.findOne({ email: emailNorm });
     
     if (existingUser) {
-      // Nếu email đã tồn tại và ĐÃ xác thực -> Báo lỗi
       if (existingUser.isVerified) {
         return res.status(409).json({ error: 'Email đã được sử dụng.' });
       }
       
-      // Nếu email tồn tại nhưng CHƯA xác thực -> Cho phép gửi lại OTP (Ghi đè user cũ)
+      // Ghi đè user cũ chưa kích hoạt
       const hashed = await bcrypt.hash(incoming.password, 10);
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -121,10 +118,9 @@ export async function register(req, res) {
       existingUser.password = hashed;
       existingUser.phone = incoming.phone;
       existingUser.otp = otp;
-      existingUser.otpExpires = Date.now() + 10 * 60 * 1000; // 10 phút
+      existingUser.otpExpires = Date.now() + 10 * 60 * 1000;
       
       await existingUser.save();
-      
       await sendEmailOtp(existingUser.email, otp, 'REGISTER');
       
       return res.status(200).json({ 
@@ -134,11 +130,10 @@ export async function register(req, res) {
       });
     }
 
-    // --- Tạo User Mới ---
+    // Tạo mới
     const hashed = await bcrypt.hash(incoming.password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Xử lý avatar
     let avatarUrl = undefined;
     if (req.file) avatarUrl = fileToPublicUrl(req.file);
     if (!avatarUrl && incoming.avatar && /^https?:\/\//i.test(incoming.avatar)) {
@@ -155,18 +150,14 @@ export async function register(req, res) {
       provinces_code: incoming.provinces_code,
       avatar: avatarUrl || '',
       biography: incoming.biography || '',
-      
-      isVerified: false, // Mặc định chưa kích hoạt
+      isVerified: false,
       otp: otp,
-      otpExpires: Date.now() + 10 * 60 * 1000 // 10 phút
+      otpExpires: Date.now() + 10 * 60 * 1000
     });
 
     await user.save();
-
-    // Gửi Email OTP
     await sendEmailOtp(user.email, otp, 'REGISTER');
 
-    // Trả về thông báo chuyển sang màn hình nhập OTP (Không trả token)
     res.status(201).json({
       message: 'Đăng ký thành công. Vui lòng kiểm tra email để nhập mã xác thực.',
       needVerify: true,
@@ -180,120 +171,68 @@ export async function register(req, res) {
 }
 
 // ============================================================
-// 2. KÍCH HOẠT TÀI KHOẢN (VERIFY ACCOUNT)
+// 2. KÍCH HOẠT TÀI KHOẢN
 // ============================================================
-
 export async function verifyAccount(req, res) {
   try {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json({ error: 'Thiếu thông tin xác thực' });
 
-    const emailNorm = normalizeEmail(email);
-
     const user = await User.findOne({ 
-      email: emailNorm,
+      email: normalizeEmail(email),
       otp: otp,
       otpExpires: { $gt: Date.now() }
     });
 
-    if (!user) {
-      return res.status(400).json({ error: 'Mã OTP sai hoặc đã hết hạn.' });
-    }
+    if (!user) return res.status(400).json({ error: 'Mã OTP sai hoặc đã hết hạn.' });
 
-    // Kích hoạt tài khoản
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
 
-    // Đăng nhập luôn cho user (trả về Token)
     const token = signToken(user);
-    
-    res.json({
-      message: 'Kích hoạt tài khoản thành công!',
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        avatar: user.avatar,
-        role: user.role,
-        isVerified: true
-      }
-    });
+    res.json({ message: 'Kích hoạt tài khoản thành công!', token, user });
 
   } catch (error) {
     res.status(500).json({ error: 'Lỗi server.' });
   }
 }
 
-
-
 // ============================================================
-// 3. ĐĂNG NHẬP (LOGIN) - CÓ CHECK VERIFIED
+// 3. ĐĂNG NHẬP
 // ============================================================
-
 export async function login(req, res) {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email và mật khẩu là bắt buộc' });
 
-  const emailNorm = normalizeEmail(email);
-  const user = await User.findOne({ email: emailNorm });
+  const user = await User.findOne({ email: normalizeEmail(email) });
   
   if (!user) return res.status(401).json({ error: 'Thông tin đăng nhập không đúng' });
-
-  // === CHECK KÍCH HOẠT ===
-  if (!user.isVerified) {
-    return res.status(403).json({ 
-      error: 'Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email.',
-      needVerify: true, 
-      email: user.email
-    });
-  }
+  if (!user.isVerified) return res.status(403).json({ error: 'Tài khoản chưa được kích hoạt.', needVerify: true, email: user.email });
 
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return res.status(401).json({ error: 'Thông tin đăng nhập không đúng' });
 
   const token = signToken(user);
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      provinces: user.provinces,
-      provinces_code: user.provinces_code,
-      avatar: user.avatar,
-      streak: user.streak,
-      biography: user.biography,
-      creationdate: user.creationdate,
-      role: user.role,
-    }
-  });
+  res.json({ token, user });
 }
 
 // ============================================================
-// 4. QUÊN MẬT KHẨU (FORGOT PASSWORD)
+// 4. QUÊN MẬT KHẨU (FORGOT PASSWORD) - CHỈ GỬI OTP
 // ============================================================
-
 export async function forgotPassword(req, res) {
   try {
+    // ⚠️ QUAN TRỌNG: Hàm này TUYỆT ĐỐI KHÔNG check password mới
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Vui lòng nhập email' });
 
-    const emailNorm = normalizeEmail(email);
-    const user = await User.findOne({ email: emailNorm });
-    
-    if (!user) {
-      return res.status(404).json({ error: 'Email chưa được đăng ký.' });
-    }
+    const user = await User.findOne({ email: normalizeEmail(email) });
+    if (!user) return res.status(404).json({ error: 'Email chưa được đăng ký.' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
     user.otp = otp;
-    user.otpExpires = Date.now() + 5 * 60 * 1000; // 5 phút
+    user.otpExpires = Date.now() + 5 * 60 * 1000; 
     await user.save();
 
     await sendEmailOtp(user.email, otp, 'FORGOT_PASS');
@@ -306,21 +245,14 @@ export async function forgotPassword(req, res) {
   }
 }
 
+// ============================================================
+// 5. CHECK OTP & ĐỔI MẬT KHẨU
+// ============================================================
 export async function verifyOtp(req, res) {
   try {
     const { email, otp } = req.body;
-    const emailNorm = normalizeEmail(email);
-
-    const user = await User.findOne({ 
-      email: emailNorm,
-      otp: otp,
-      otpExpires: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'Mã OTP không chính xác hoặc đã hết hạn.' });
-    }
-
+    const user = await User.findOne({ email: normalizeEmail(email), otp, otpExpires: { $gt: Date.now() } });
+    if (!user) return res.status(400).json({ error: 'Mã OTP không chính xác hoặc đã hết hạn.' });
     res.json({ message: 'OTP hợp lệ.' });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi server.' });
@@ -330,43 +262,30 @@ export async function verifyOtp(req, res) {
 export async function resetPassword(req, res) {
   try {
     const { email, otp, newPassword } = req.body;
-
+    
+    // Logic check mật khẩu chỉ nằm ở đây
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 6 ký tự.' });
     }
 
-    const emailNorm = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizeEmail(email), otp, otpExpires: { $gt: Date.now() } });
+    if (!user) return res.status(400).json({ error: 'Phiên làm việc hết hạn hoặc OTP sai.' });
 
-    const user = await User.findOne({ 
-      email: emailNorm,
-      otp: otp,
-      otpExpires: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'Phiên làm việc hết hạn hoặc OTP sai.' });
-    }
-
-    const hashed = await bcrypt.hash(newPassword, 10);
-    
-    user.password = hashed;
+    user.password = await bcrypt.hash(newPassword, 10);
     user.otp = undefined;       
     user.otpExpires = undefined; 
     
     await user.save();
-
     res.json({ message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.' });
 
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: 'Lỗi server khi đổi mật khẩu.' });
   }
 }
 
 // ============================================================
-// 5. THÔNG TIN USER (ME)
+// 6. THÔNG TIN USER
 // ============================================================
-
 export async function me(req, res) {
   const user = await User.findById(req.user.id).select('email role createdAt isVerified');
   res.json({ user });
