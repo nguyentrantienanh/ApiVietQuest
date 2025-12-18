@@ -1,4 +1,5 @@
-// src/routes/user.routes.jsimport { Router } from 'express';
+
+import { Router } from 'express';
 import { auth } from '../middlewares/auth.js';
 import {
   getMe,
