@@ -22,13 +22,7 @@ export function startWeeklyResetScheduler() {
  */
 export async function resetWeeklyLeaderboard() {
   try {
-    // === BƯỚC 1: SAO LƯU ĐIỂM VÀ RESET VỀ 0 ===
-    // Dùng aggregation pipeline để copy "weeklyScore" -> "lastWeeklyScore"
-    // VÀ set "weeklyScore" = 0, "lastWeekRank" = 0 cho tất cả
     console.log('Bắt đầu sao lưu điểm tuần trước và reset (atomic per-document)...');
-    // Thực hiện 1 updateMany với aggregation pipeline để đảm bảo mỗi document
-    // được xử lý nguyên tử: sao lưu weeklyScore -> lastWeeklyScore, reset weeklyScore -> 0
-    // và đặt lastWeekRank = 0. Dùng pipeline để tránh race giữa nhiều cập nhật.
     await User.updateMany(
       {}, // Áp dụng cho tất cả user; pipeline bên dưới xử lý điều kiện nội bộ
       [

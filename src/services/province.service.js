@@ -1,7 +1,4 @@
-// src/services/province.service.js
 import axios from 'axios';
-
-// Cache
 let allProvincesCache = []; // Dùng cho options { name, codename }
 let wardMapCache = new Map(); // <-- SỬA 1: Đổi tên thành wardMapCache
 let lastFetched = 0;

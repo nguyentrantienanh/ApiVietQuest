@@ -1,4 +1,4 @@
-// routes/ai.route.js
+
 import { Router } from 'express';
 import dotenv from 'dotenv';
 

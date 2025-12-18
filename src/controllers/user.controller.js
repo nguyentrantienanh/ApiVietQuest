@@ -1,4 +1,4 @@
-// src/controllers/user.controller.js
+
 import { User } from '../models/User.js';
 import { pickUserUpdate } from '../validators/user.validator.js';
 import bcrypt from 'bcryptjs';
@@ -6,10 +6,6 @@ import bcrypt from 'bcryptjs';
 /** Lấy URL công khai từ file upload của CloudinaryStorage */
 function fileToPublicUrl(file) {
   if (!file) return undefined;
-  // CloudinaryStorage meta thường có:
-  // - secure_url (https)  ← ưu tiên
-  // - url
-  // - path (nhiều bản map luôn URL vào path)
   if (file.secure_url) return file.secure_url;
   if (file.url) return file.url;
   if (file.path && String(file.path).startsWith('http')) return file.path;
@@ -124,10 +120,6 @@ export async function deleteMe(req, res) {
     res.status(500).json({ error: e.message || 'Lỗi server khi xóa tài khoản' });
   }
 }
-/**
- * [Public] Lấy Top 3 người chiến thắng tuần trước
- * GET /api/user/leaderboard/lastweek-winners
- */
 /**
  * [Public] Lấy Top 3 người chiến thắng tuần trước
  * GET /api/user/leaderboard/lastweek-winners

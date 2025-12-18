@@ -1,4 +1,3 @@
-// src/validators/user.validator.js
 import { validateRegister } from './auth.validator.js';
 
 export const validateAdminCreate = validateRegister;

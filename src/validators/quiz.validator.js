@@ -1,5 +1,3 @@
-// src/validators/quiz.validator.js
-
 export function validateCreateQuiz(body) {
   const { name, type, level } = body;
   if (!name || !type || !level) {

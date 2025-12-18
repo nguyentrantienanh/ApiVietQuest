@@ -2,7 +2,7 @@ import express from 'express';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import cors from 'cors';
-// import rateLimit from 'express-rate-limit'; // Bỏ comment nếu dùng
+
 import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
 import heritageRoutes from './routes/heritage.routes.js';
@@ -16,9 +16,9 @@ import quizAttemptRoutes from './routes/quiz_attempt.routes.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
-import heritageViewRoutes from './routes/heritage.views.js'; // Nếu còn dùng EJS Views
-import cron from 'node-cron';         // Import node-cron
-import { User } from './models/User.js'; // Import User model
+import heritageViewRoutes from './routes/heritage.views.js';
+import cron from 'node-cron';        
+import { User } from './models/User.js'; 
 import { startWeeklyResetScheduler } from './services/scheduler.js';
 import aiRouter from './routes/ai.route.js';
 const __filename = fileURLToPath(import.meta.url);
@@ -27,14 +27,14 @@ dotenv.config();
 
 const app = express();
 app.use(helmet({
-    contentSecurityPolicy: false, // Tắt CSP nếu gây lỗi với Swagger/EJS/Ảnh
-    crossOriginEmbedderPolicy: false, // Tắt COEP nếu cần
+    contentSecurityPolicy: false,  
+    crossOriginEmbedderPolicy: false,  
 }));
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 
-// Error handler cho JSON sai
+ 
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     console.error('Invalid JSON body:', err.message);
@@ -43,14 +43,14 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// Serve ảnh upload công khai
+ 
 app.use(
   "/uploads",
   (req, res, next) => {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     next();
   },
-  // Đường dẫn đúng là từ __dirname ra ngoài rồi vào /uploads
+ 
   express.static(path.join(__dirname, "../uploads"))
 );
 
@@ -62,7 +62,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/quiz', quizRoutes);
-app.use('/api/user/quizattempt', quizAttemptRoutes); // Gắn vào /api/user/
+app.use('/api/user/quizattempt', quizAttemptRoutes);  
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/ai', aiRouter);
 
@@ -79,14 +79,12 @@ const MONGODB_URI = process.env.MONGODB_URI;
 connectDB(MONGODB_URI).then(() => {
   const server = app.listen(PORT, () => {
     console.log(`🚀 VietQuest API listening on port http://localhost:${PORT}`);
-    console.log(`📘 Swagger Docs available at /api/docs`); // Đường dẫn không cần localhost
+    console.log(`📘 Swagger Docs available at /api/docs`); 
   });
 
   // --- Lập Lịch Cron Jobs ---
 startWeeklyResetScheduler();
-  // Weekly reset is handled by startWeeklyResetScheduler() in src/services/scheduler.js
-  // Avoid duplicate cron jobs here to prevent race conditions (backup must run before reset).
-
+ 
   // 2. Reset Streak (00:05 Mỗi Ngày)
   cron.schedule('5 0 * * *', async () => {
     console.log('>>> [CRON] Starting daily streak check...');

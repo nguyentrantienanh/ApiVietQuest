@@ -1,5 +1,4 @@
-// src/routes/user.routes.js
-import { Router } from 'express';
+// src/routes/user.routes.jsimport { Router } from 'express';
 import { auth } from '../middlewares/auth.js';
 import {
   getMe,
@@ -15,55 +14,10 @@ const r = Router();
 // 🔒 Tất cả route ở file này yêu cầu đăng nhập
 r.use(auth());
 
-/**
- * @openapi
- * tags:
- * - name: User (Self)
- *   description: 🔒 Quản lý tài khoản cá nhân (cần token)
- */
-
-/**
- * @openapi
- * /user/me:
- *   get:
- *     tags: [User (Self)]
- *     summary: Lấy thông tin người dùng hiện tại (chính mình)
- *     security:
- *       - bearerAuth: []
- */
 r.get('/me', getMe);
 
-/**
- * @openapi
- * /user/update:
- *   patch:
- *     tags: [User (Self)]
- *     summary: Cập nhật thông tin cá nhân (chính mình)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: false
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               avatar:
- *                 type: string
- *                 format: binary
- *               
- */
 r.patch('/update', uploadUserAvatar, updateMe);
 
-/**
- * @openapi
- * /user/delete:
- *   delete:
- *     tags: [User (Self)]
- *     summary: Xóa tài khoản (chính mình)
- *     security:
- *       - bearerAuth: []
- */
 r.delete('/delete', deleteMe);
  
 export default r;

@@ -1,4 +1,4 @@
-// src/controllers/leaderboard.controller.js
+
 import { User } from '../models/User.js';
 
 /**

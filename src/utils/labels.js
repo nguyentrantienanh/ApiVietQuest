@@ -1,4 +1,3 @@
-// Utility to convert enum keys to human-friendly Vietnamese labels
 export const TYPE_LABELS = {
   di_san_van_hoa_vat_the: 'Di sản văn hoá vật thể',
   di_san_van_hoa_phi_vat_the: 'Di sản văn hoá phi vật thể',

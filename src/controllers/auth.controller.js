@@ -1,4 +1,4 @@
-// src/controllers/auth.controller.js
+
 import emailjs from '@emailjs/nodejs';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';

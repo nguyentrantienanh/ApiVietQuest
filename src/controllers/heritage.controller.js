@@ -1,4 +1,4 @@
-// controllers/heritage.controller.js
+
 import { Heritage, __ENUMS } from '../models/Heritage.js';
 import { validateCreate } from '../validators/heritage.validator.js';
 import { publicUrl } from '../middlewares/upload.js';
@@ -20,16 +20,10 @@ const LEVEL_MAP = {
   cong_vien_dia_chat_toan_cau: 8
 };
 
-/** Trả về URL ảnh hợp lệ từ object (multer+cloudinary) hoặc string */
 function normalizeImageValue(val, req) {
   if (!val && val !== '') return undefined;
 
   if (typeof val === 'object') {
-    // CloudinaryStorage thường trả:
-    // - secure_url (https) (ưu tiên)
-    // - url
-    // - path (nhiều phiên bản map URL vào path)
-    // - filename, format
     if (val.secure_url) return val.secure_url;
     if (val.url) return val.url;
     if (val.path) {
@@ -48,8 +42,8 @@ function normalizeImageValue(val, req) {
   if (typeof val === 'string') {
     const s = val.trim();
     if (!s) return undefined;
-    if (/^https?:\/\//i.test(s)) return s; // URL cũ/Cloudinary -> giữ nguyên
-    return s; // nếu còn path local, tuỳ bạn có còn phục vụ static hay không
+    if (/^https?:\/\//i.test(s)) return s; 
+    return s; 
   }
   return undefined;
 }
@@ -75,7 +69,7 @@ function extractCoordinates(url) {
     const lat = parseFloat(match[1]);
     const lng = parseFloat(match[2]);
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-    return { type: 'Point', coordinates: [lng, lat] }; // GeoJSON: [lng, lat]
+    return { type: 'Point', coordinates: [lng, lat] }; 
   }
   return null;
 }

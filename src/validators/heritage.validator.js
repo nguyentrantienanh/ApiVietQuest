@@ -1,4 +1,4 @@
-// Validator đơn giản, đủ xài. Có thể thay bằng zod/express-validator nếu muốn.
+
 export function validateCreate(body) {
   const required = ['hid', 'ward_codename', 'name', 'type', 'type_code', 'level', 'code_level'];
   const missing = required.filter(k => body[k] === undefined || body[k] === null || body[k] === '');

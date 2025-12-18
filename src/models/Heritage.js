@@ -2,22 +2,22 @@ import mongoose from 'mongoose';
 import isURL from 'validator/lib/isURL.js';
 
 const TYPE_ENUM = [
-  'di_san_van_hoa_vat_the',      // 1
-  'di_san_van_hoa_phi_vat_the',  // 2
-  'di_san_thien_nhien'           // 3 (phụ)
+  'di_san_van_hoa_vat_the',       
+  'di_san_van_hoa_phi_vat_the',   
+  'di_san_thien_nhien'            
 ];
 
 const LEVEL_ENUM = [
   // Trong nước
-  'cap_tinh',                // 1
-  'cap_quoc_gia',            // 2
-  'cap_dac_biet',            // 3
+  'cap_tinh',                 
+  'cap_quoc_gia',            
+  'cap_dac_biet',            
   // Thế giới (UNESCO)
-  'di_san_the_gioi',         // 4
-  'ds_phi_vat_the_dai_dien', // 5
-  'ky_uc_the_gioi',          // 6
-  'khu_du_tru_sinh_quyen',   // 7
-  'cong_vien_dia_chat_toan_cau' // 8
+  'di_san_the_gioi',         
+  'ds_phi_vat_the_dai_dien',  
+  'ky_uc_the_gioi',           
+  'khu_du_tru_sinh_quyen',    
+  'cong_vien_dia_chat_toan_cau'  
 ];
 
 const HeritageSchema = new mongoose.Schema(

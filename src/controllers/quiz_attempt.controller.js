@@ -1,7 +1,5 @@
-// src/controllers/quiz_attempt.controller.js
+
 import { QuizAttempt } from '../models/QuizAttempt.js';
-// Optional: Import QuizConfig if needed for more detailed population later
-// import { QuizConfig } from '../models/QuizConfig.js';
 
 /**
  * [User] Lấy lịch sử làm bài của CHÍNH MÌNH

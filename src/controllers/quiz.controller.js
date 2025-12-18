@@ -1,9 +1,8 @@
-// src/controllers/quiz.controller.js
+
 import { QuizConfig, QuizThemeTypes } from '../models/QuizConfig.js';
 import { QuizAttempt } from '../models/QuizAttempt.js';
 import { Heritage } from '../models/Heritage.js';
 import { User } from '../models/User.js';
-// ✅ Đã import service mới
 import { getProvinces } from '../services/province.service.js';
 
 // --- Helper Functions ---
@@ -92,8 +91,6 @@ try {
  default:
   return res.status(400).json({ error: 'Loại chủ đề không được hỗ trợ' });
  }
-
- // Lấy
  const sampleSize = Math.max(questionCount * 4, 50); 
  const candidates = await Heritage.aggregate([
   { $match: filters },

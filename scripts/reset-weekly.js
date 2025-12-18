@@ -1,6 +1,4 @@
-#!/usr/bin/env node
-// scripts/reset-weekly.js
-// One-off script to run weekly reset manually for testing.
+
 import dotenv from 'dotenv';
 dotenv.config();
 
