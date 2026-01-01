@@ -1,12 +1,12 @@
 import jwt from 'jsonwebtoken';
 
-export function auth(required = true) {
+export function auth(required = true) { 
   return (req, res, next) => {
     const hdr = req.headers.authorization || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
 
     if (!token) {
-      if (!required) return next(); // cho phép request không đăng nhập (GET public)
+      if (!required) return next();  
       return res.status(401).json({ error: 'Missing token' });
     }
 

@@ -39,34 +39,16 @@ const HeritageSchema = new mongoose.Schema(
       type: String,
       validate: {
         validator: (v) => !v || isURL(v, { require_protocol: true }),
-        message: 'wiki_link must be a valid URL with protocol'
+        message: ' must be a valid URL with protocol'
       }
     },
 
-    // Tọa độ GeoJSON (để near, radius km) - GIỮ NGUYÊN CẤU TRÚC
-    coordinate: {
-      type: {
-        type: String,
-        enum: ['Point'],
-        default: 'Point'
-      },
-      coordinates: {
-        // [lng, lat]
-        type: [Number],
-        validate: {
-          validator: (arr) => !arr || (arr.length === 2 && arr.every(n => typeof n === 'number')),
-          message: 'coordinate must be [lng, lat]'
-        }
-      }
-    },
-
-    // ▼▼▼ THÊM TRƯỜNG MỚI: GOOGLE MAPS URL ▼▼▼
+    
     google_map_link: {
       type: String,
       trim: true,
     },
-    // ▲▲▲ KẾT THÚC THÊM TRƯỜNG MỚI ▲▲▲
-
+  
     // Cấp bậc & code_level (1..8)
     level: { type: String, enum: LEVEL_ENUM, required: true },
     code_level: { type: Number, enum: [1,2,3,4,5,6,7,8], required: true },

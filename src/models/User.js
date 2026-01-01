@@ -16,7 +16,7 @@ lastQuizCompletionDate: { type: Date },  // Ngày hoàn thành quiz gần nhất
     biography: { type: String, default: '' },
      
 lastWeeklyScore: { type: Number, default: 0, index: true }, // Điểm tuần trước
-    creationdate: { type: Date, default: Date.now },
+    creationdate: { type: Date, default: Date.now }, // Ngày tạo tài khoản
     role: { type: String, enum: ['admin', 'user'], default: 'user' },
     experience: { type: Number, default: 0, index: true },
     weeklyScore: { type: Number, default: 0, index: true },

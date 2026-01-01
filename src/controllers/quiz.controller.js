@@ -106,7 +106,7 @@ try {
  }
 
  let allProvinces = [];
- // SỬA 1: Đổi tên 'districtMap' thành 'wardMap'
+ 
  let wardMap = null;
 
  if (requiresProvinceData) {
@@ -114,10 +114,8 @@ try {
   // ✅ Sử dụng hàm getProvinces từ service
   const provinceData = await getProvinces(); 
   allProvinces = provinceData.allProvinces;
-  // SỬA 2: Lấy 'wardMap' từ service (Giả định service đã được cập nhật)
   wardMap = provinceData.wardMap;
 
-  // SỬA 3: Kiểm tra 'wardMap'
   if (allProvinces.length < 4 || !wardMap || wardMap.size === 0) {
   return res.status(500).json({ error: 'Không thể lấy đủ dữ liệu tỉnh/thành hoặc bản đồ phường/xã.' });
   }
@@ -159,7 +157,7 @@ try {
     ? "Di sản này thuộc tỉnh/thành nào?"
     : `Di sản '${correctHeritage.name}' thuộc tỉnh/thành nào?`;
 
-    // SỬA 4: Tra cứu 'ward_codename' trong 'wardMap'
+  
    const correctProvinceCodename = wardMap.get(correctHeritage.ward_codename);
    if (!correctProvinceCodename) {
     console.warn(`(Map) Không tìm thấy tỉnh cho di sản ${correctHeritage.hid} (phường/xã: ${correctHeritage.ward_codename})`);
@@ -245,7 +243,7 @@ try {
 
  // --- Logic chấm điểm ---
  let allProvinces = [];
- // SỬA 5: Đổi tên 'districtMap' thành 'wardMap'
+ 
  let wardMap = null;
  const requiresProvinceData = config.themeType.includes('PROVINCE');
 
@@ -253,7 +251,7 @@ try {
  try {
   const provinceData = await getProvinces(); 
   allProvinces = provinceData.allProvinces;
-  // SỬA 6: Lấy 'wardMap' từ service
+ 
   wardMap = provinceData.wardMap;
  } catch (e) {
   return res.status(500).json({ error: 'Lỗi API khi lấy dữ liệu Tỉnh/Phường/Xã để chấm điểm.' });
@@ -263,7 +261,7 @@ try {
  const heritageDetails = requiresProvinceData
   ? await Heritage.find({ hid: { $in: answers.map(a => a.questionId) } }).select('hid ward_codename')
   : [];
- // heritageMap: map 'hid' -> 'ward_codename' (chính xác)
+
  const heritageMap = new Map(heritageDetails.map(h => [h.hid, h.ward_codename]));
 
  for (const answer of answers) {
@@ -278,9 +276,7 @@ try {
    break;
   case 'GUESS_PROVINCE_FROM_IMAGE':
   case 'GUESS_PROVINCE_FROM_NAME':
-   // SỬA 7: Đổi tên biến cho rõ nghĩa
    const correctWardCodename = heritageMap.get(questionHid);
-   // SỬA 8: Tra cứu trong 'wardMap'
    const correctProvinceCodename = wardMap.get(correctWardCodename);
    isCorrect = (correctProvinceCodename === selectedValue);
    break;
@@ -310,7 +306,7 @@ try {
  const weeklyScoreGained = correctCount;
  // --- Kết thúc tính điểm ---
 
- // --- Logic Streak (Giữ nguyên) ---
+ // --- Logic Streak ---
  let streakUpdate = {};
  const today = new Date();
  const todayDateString = today.toISOString().split('T')[0];
@@ -331,8 +327,6 @@ try {
  } else {
  console.warn(`Streak Check: Không tìm thấy User ${userId}.`);
  }
- // --- Kết thúc Logic Streak ---
-
 
  // --- Cập nhật DB ---
  const attemptPromise = QuizAttempt.create({

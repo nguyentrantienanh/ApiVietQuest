@@ -41,7 +41,7 @@ function fileToPublicUrl(file) {
   return undefined;
 }
 
-// --- 🔥 HELPER MỚI: CHECK LIMIT 5 LẦN / 24 GIỜ 🔥 ---
+// --- CHECK LIMIT 5 LẦN / 24 GIỜ ---
 async function checkOtpLimit(user) {
   const now = Date.now();
   const ONE_DAY = 24 * 60 * 60 * 1000; // 24 giờ tính bằng mili-giây
@@ -85,7 +85,6 @@ async function sendEmailOtp(email, otp, type = 'REGISTER') {
     console.log('✅ [EmailJS] Gửi thành công!');
   } catch (error) {
     console.error('❌ [EmailJS] Lỗi gửi mail:', error);
-    // Vẫn in log để test nếu lỡ hết quota EmailJS
     console.log(`🔑 [BACKUP LOG OTP]: ${otp}`);
   }
 }
@@ -108,7 +107,6 @@ export async function register(req, res) {
         return res.status(409).json({ error: 'Email đã được sử dụng.' });
       }
       
-      // 🔥 Kiểm tra giới hạn 5 lần/ngày
       try {
         await checkOtpLimit(existingUser);
       } catch (err) {
