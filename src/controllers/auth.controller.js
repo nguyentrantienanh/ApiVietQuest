@@ -2,6 +2,7 @@
 import emailjs from '@emailjs/nodejs';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { randomInt } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { User } from '../models/User.js';
 import { validateRegister, pickRegister } from '../validators/auth.validator.js';
@@ -25,6 +26,12 @@ function signToken(user) {
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES || '7d' }
   );
+}
+
+// Helper: Sinh OTP bảo mật hơn (mặc định 8 chữ số, có thể có số 0 đầu)
+function generateOtp(length = 8) {
+  const max = 10 ** length;
+  return randomInt(0, max).toString().padStart(length, '0');
 }
 
 // Helper: Rút URL avatar
@@ -114,7 +121,8 @@ export async function register(req, res) {
       }
 
       const hashed = await bcrypt.hash(incoming.password, 10);
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      // TẠO OTP MỚI
+      const otp = generateOtp();
 
       existingUser.name = incoming.name;
       existingUser.password = hashed;
@@ -133,7 +141,7 @@ export async function register(req, res) {
 
     // USER MỚI
     const hashed = await bcrypt.hash(incoming.password, 10);
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
     let avatarUrl = undefined;
     if (req.file) avatarUrl = fileToPublicUrl(req.file);
 
@@ -237,7 +245,7 @@ export async function forgotPassword(req, res) {
       return res.status(429).json({ error: err.message });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
     user.otp = otp;
     user.otpExpires = Date.now() + 5 * 60 * 1000;
     
@@ -319,7 +327,7 @@ export async function resendOtp(req, res) {
     }
 
     // Tạo OTP mới
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOtp();
     user.otp = otp;
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 phút
 
