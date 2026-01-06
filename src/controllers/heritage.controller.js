@@ -23,22 +23,26 @@ const LEVEL_MAP = {
 function normalizeImageValue(val, req) {
   if (!val && val !== '') return undefined;
 
-  if (typeof val === 'object') {
-    if (val.secure_url) return val.secure_url;
-    if (val.url) return val.url;
-    if (val.path) {
-      const s = String(val.path);
-      if (s.startsWith('http')) return s;
-      if (val.filename) {
-        const cloud = process.env.CLOUDINARY_CLOUD_NAME;
-        const fmt = val.format || 'jpg';
-        return `https://res.cloudinary.com/${cloud}/image/upload/${val.filename}.${fmt}`;
-      }
-      return s;
+  // 1. Trường hợp là File Object (Multer/Cloudinary upload)
+  if (typeof val === 'object' && val.path) {
+    const s = String(val.path);
+    if (s.startsWith('http')) return s;
+    if (val.filename) {
+      const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+      const fmt = val.format || 'jpg';
+      return `https://res.cloudinary.com/${cloud}/image/upload/${val.filename}.${fmt}`;
     }
-    return undefined;
+    return s;
+  }
+  
+  // 2. Trường hợp là Object có sẵn (Dữ liệu cũ hoặc JSON gửi lên)
+  if (typeof val === 'object') {
+     if (val.secure_url) return val.secure_url; // Cloudinary raw
+     if (val.url) return val.url; // Đã là object đúng form
+     return undefined;
   }
 
+  // 3. Trường hợp là String (URL)
   if (typeof val === 'string') {
     const s = val.trim();
     if (!s) return undefined;
@@ -81,23 +85,65 @@ export async function createHeritage(req, res) {
     if (body.type) body.type_code = TYPE_MAP[body.type];
     if (body.level) body.code_level = LEVEL_MAP[body.level];
 
-    // Ảnh chính
-    if (req.files?.img?.[0]) body.img = normalizeImageValue(req.files.img[0], req);
-    else if (body.img) body.img = normalizeImageValue(body.img, req);
+    // --- [SỬA] Xử lý Ảnh chính (img) ---
+    // Ưu tiên file upload, nếu không có thì lấy link từ body
+    const imgFile = req.files?.img?.[0];
+    const imgUrl = normalizeImageValue(imgFile || body.img, req);
 
-    // Thư viện ảnh
-    if (req.files?.photo_library?.length) {
-      body.photo_library = req.files.photo_library.map(f => normalizeImageValue(f, req)).filter(Boolean);
-    } else if (body.photo_library) {
-      let arr = body.photo_library;
-      if (typeof arr === 'string') {
-        try { arr = JSON.parse(arr); } catch { arr = [arr]; }
-      }
-      if (Array.isArray(arr)) body.photo_library = arr.map(v => normalizeImageValue(v, req)).filter(Boolean);
-      else body.photo_library = [normalizeImageValue(arr, req)].filter(Boolean);
+    if (imgUrl) {
+      body.img = {
+        url: imgUrl,
+        // Lấy credit/caption từ body (Frontend phải gửi thêm 2 trường này)
+        credit: body.img_credit || '', 
+        caption: body.img_caption || ''
+      };
+    } else {
+      body.img = null;
     }
 
-    // Google Maps link -> GeoJSON
+    // --- [SỬA] Xử lý Thư viện ảnh (photo_library) ---
+    let finalPhotoLib = [];
+
+    // 1. Xử lý ảnh cũ hoặc ảnh dạng JSON (Object có sẵn)
+    if (body.photo_library) {
+      let arr = body.photo_library;
+      if (typeof arr === 'string') {
+        try { arr = JSON.parse(arr); } catch { arr = []; } // Nếu lỗi thì bỏ qua
+      }
+      if (!Array.isArray(arr)) arr = [arr];
+
+      // Duyệt qua mảng JSON gửi lên
+      arr.forEach(item => {
+        // Nếu item là object {url, credit} thì giữ nguyên
+        if (typeof item === 'object' && item.url) {
+          finalPhotoLib.push({
+            url: item.url,
+            credit: item.credit || '',
+            caption: item.caption || ''
+          });
+        } 
+        // Nếu item là string URL thì convert sang object
+        else {
+          const url = normalizeImageValue(item, req);
+          if (url) finalPhotoLib.push({ url, credit: '', caption: '' });
+        }
+      });
+    }
+
+    // 2. Xử lý ảnh mới upload (req.files)
+    if (req.files?.photo_library?.length) {
+      req.files.photo_library.forEach(f => {
+        const url = normalizeImageValue(f, req);
+        if (url) {
+          // Ảnh mới upload tạm thời để credit rỗng (hoặc anh có thể xử lý logic mảng credit tương ứng)
+          finalPhotoLib.push({ url, credit: '', caption: '' });
+        }
+      });
+    }
+    
+    body.photo_library = finalPhotoLib;
+
+    // ... (Phần xử lý Google Maps và GeoJSON giữ nguyên) ...
     if (body.google_map_link) {
       const geoJson = extractCoordinates(body.google_map_link);
       body.coordinate = geoJson || undefined;
@@ -129,34 +175,78 @@ export async function updateHeritage(req, res) {
     if (update.type) update.type_code = TYPE_MAP[update.type];
     if (update.level) update.code_level = LEVEL_MAP[update.level];
 
-    // Ảnh chính
+    // --- [SỬA] Ảnh chính ---
     if (req.files?.img?.[0]) {
-      update.img = normalizeImageValue(req.files.img[0], req);
+      // Có file mới upload -> Thay thế hoàn toàn
+      const url = normalizeImageValue(req.files.img[0], req);
+      update.img = {
+        url: url,
+        credit: update.img_credit || '',
+        caption: update.img_caption || ''
+      };
     } else if ('img' in req.body) {
-      // Cho phép xóa ảnh chính khi client gửi img=""
-      update.img = normalizeImageValue(req.body.img, req);
-      if (update.img === undefined) update.img = null;
+        // Không upload file, client gửi string link hoặc object
+        // Trường hợp 1: Client muốn xóa ảnh (gửi chuỗi rỗng)
+        if (update.img === '' || update.img === null) {
+            update.img = null;
+        } 
+        // Trường hợp 2: Client gửi Object {url, credit} (JSON string)
+        else if (typeof update.img === 'string') {
+            try {
+                const parsed = JSON.parse(update.img);
+                if (parsed.url) update.img = parsed; // Lấy object
+                else update.img = { url: parsed, credit: update.img_credit || '' }; // Fallback
+            } catch {
+                // Là URL string thường
+                const url = normalizeImageValue(update.img, req);
+                if (url) update.img = { url, credit: update.img_credit || '' };
+            }
+        }
     }
+    // Chú ý: Nếu client chỉ muốn update credit mà không đổi ảnh, họ phải gửi cả `img` (URL cũ) và `img_credit` mới.
 
-    // Thư viện ảnh: giữ cũ + thêm mới
-    let keptPhotos = [];
-    if (update.photo_library && typeof update.photo_library === 'string') {
-      try {
-        const parsed = JSON.parse(update.photo_library);
-        if (Array.isArray(parsed)) keptPhotos = parsed.map(p => normalizeImageValue(p, req)).filter(Boolean);
-        else keptPhotos = [normalizeImageValue(parsed, req)].filter(Boolean);
-      } catch {
-        keptPhotos = [normalizeImageValue(update.photo_library, req)].filter(Boolean);
+    // --- [SỬA] Thư viện ảnh ---
+    let finalPhotoLib = [];
+
+    // 1. Ảnh cũ giữ lại (Client gửi JSON string mảng các object)
+    if (update.photo_library) {
+      let arr = update.photo_library;
+      if (typeof arr === 'string') {
+        try { arr = JSON.parse(arr); } catch { arr = []; }
       }
-    }
-    const addedPhotos = (req.files?.photo_library || []).map(f => normalizeImageValue(f, req)).filter(Boolean);
-    if (addedPhotos.length > 0 || update.photo_library) {
-      update.photo_library = [...keptPhotos, ...addedPhotos];
-    } else {
-      delete update.photo_library;
+      if (!Array.isArray(arr)) arr = [arr];
+
+      arr.forEach(item => {
+        // Logic: Nếu item có url và credit -> giữ nguyên. Nếu chỉ là url -> thêm credit rỗng
+        if (item && typeof item === 'object' && item.url) {
+            finalPhotoLib.push({
+                url: item.url,
+                credit: item.credit || '',
+                caption: item.caption || ''
+            });
+        } else {
+            const url = normalizeImageValue(item, req);
+            if (url) finalPhotoLib.push({ url, credit: '', caption: '' });
+        }
+      });
     }
 
-    // Google Maps link -> GeoJSON
+    // 2. Ảnh mới upload thêm
+    if (req.files?.photo_library?.length) {
+      req.files.photo_library.forEach(f => {
+        const url = normalizeImageValue(f, req);
+        if (url) finalPhotoLib.push({ url, credit: '', caption: '' });
+      });
+    }
+
+    if (finalPhotoLib.length > 0) {
+        update.photo_library = finalPhotoLib;
+    } else if ('photo_library' in req.body && (!req.files?.photo_library)) {
+        // Nếu client gửi photo_library rỗng và không up file -> Xóa hết
+        update.photo_library = []; 
+    }
+
+    // ... (Phần Maps và Update DB giữ nguyên) ...
     if (update.google_map_link || update.google_map_link === '') {
       const geoJson = extractCoordinates(update.google_map_link);
       if (geoJson) {
